@@ -1,0 +1,26 @@
+# randongeon/requirements.txt
+
+# ── Dependências de produção ──────────────────────────────────────────────────
+# O projeto não possui dependências externas de runtime.
+# Toda a lógica usa apenas a biblioteca padrão do Python 3.10+.
+
+# ── Dependências de desenvolvimento / testes ─────────────────────────────────
+pytest>=7.4.0           # framework de testes unitários
+pytest-cov>=4.1.0       # relatório de cobertura de código
+
+# ── Instalação ────────────────────────────────────────────────────────────────
+# Para instalar apenas as dependências de teste:
+#   pip install -r requirements.txt
+#
+# Para rodar todos os testes:
+#   pytest tests/ -v
+#
+# Para rodar com cobertura:
+#   pytest tests/ -v --cov=jogo --cov-report=term-missing
+#
+# Para rodar um arquivo específico:
+#   pytest tests/test_jogador.py -v
+#   pytest tests/test_inimigo.py -v
+#   pytest tests/test_item.py -v
+#   pytest tests/test_gerador.py -v
+#   pytest tests/test_masmorra.py -v
