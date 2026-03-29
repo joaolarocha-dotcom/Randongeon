@@ -28,6 +28,8 @@ CATALOGO_ITENS = [
     Item("Grande Poção de Força", bonus_atk=2),
     Item("Elixir Vital",          bonus_hp=5),
     Item("Erva Medicinal",        bonus_hp=3),
+    Item("Poção do Mestre Gato",  bonus_esq=0.05),
+    Item("Elixir do Mestre Mosca",bonus_esq=0.1),
     Item("Tônico do Guerreiro",   bonus_atk=1, bonus_hp=2),
 ]
 
