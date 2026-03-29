@@ -57,6 +57,7 @@ LORE = [
 ]
 
 
+
 class Masmorra:
     """
     Orquestra o estado e o fluxo completo de uma run da masmorra.
@@ -196,10 +197,23 @@ class Masmorra:
 
     def mostrar_lore(self) -> None:
         """Exibe o texto de lore de introdução linha a linha com delay."""
-        for linha in LORE:
-            print(linha)
-            time.sleep(0.75)
-        print("\n" * 2)
+        introducao = input("Gostaria de ouvir uma história? [y/n] \n")
+        if introducao.lower() == "y":
+            for linha in LORE:
+                print(linha)
+                time.sleep(0.75)
+            print("\n" * 2)
+        elif introducao.lower() == "n":
+            print("\n")
+        else: 
+            print("Vou entender como um sim...")
+            for linha in LORE:
+                print(linha)
+                time.sleep(0.75)
+            print("\n" * 2)
+        
+        
+        
 
     def mostrar_status(self) -> None:
         """Exibe o status atual do jogador no terminal."""
@@ -207,6 +221,7 @@ class Masmorra:
         print(f"Nome:  {self.jogador.nome}")
         print(f"HP:    {self.jogador.hp} / {self.jogador.hp_max}")
         print(f"ATK:   {self.jogador.atk}")
+        print(f"ESQ:   {self.jogador.esq * 100}%")
         print(f"XP:    {self.jogador.xp}")
         print(f"Andar: {self.andar}\n")
 
@@ -248,35 +263,40 @@ class Masmorra:
             print(f"{inimigo.nome} — HP: {inimigo.hp}")
             print(f"Seu HP: {self.jogador.hp}\n")
             print("1 - Atacar")
-            print("2 - Defender")
+            print("2 - Esquivar e Atacar")
             print("3 - Fugir\n")
 
             acao = input("> ")
             print()
 
             if acao == "1":
-                defendendo = False
                 inimigo.receber_dano(self.jogador.atk)
                 print(f"Você causou {self.jogador.atk} de dano.\n")
                 time.sleep(0.2)
 
                 if inimigo.esta_vivo():
-                    dano_inimigo = inimigo.atk
-                    if defendendo:
-                        dano_inimigo = max(1, dano_inimigo // 2)
-                    self.jogador.receber_dano(dano_inimigo)
-                    print(f"O {inimigo.nome} causou {dano_inimigo} de dano.\n")
-                    time.sleep(0.2)
+                    self.jogador.receber_dano(inimigo.atk)
 
             elif acao == "2":
-                defendendo = True
-                print("Você assumiu postura defensiva.\n")
+                print("Você tentou se preparou para se esquivar do ataque inimigo e contra-atacar... \n")
                 time.sleep(0.2)
+                
+                if random.random() <= self.jogador.esq:
+                    
+                    
+                    print("E CONSEGUIU!!! \n")
+                    time.sleep(0.2)
+                    inimigo.receber_dano(self.jogador.atk)
+                    self.jogador.receber_dano(0)
+                else:
+                    print("Mas falhou... \n")
+                    time.sleep(0.2)
+                    self.jogador.receber_dano(inimigo.atk * 2)
+                    print(f"O {inimigo.nome} causou {inimigo.atk * 2} de dano (aumentado).\n")
+                    time.sleep(0.2)  
+                
 
-                dano_inimigo = max(1, inimigo.atk // 2)
-                self.jogador.receber_dano(dano_inimigo)
-                print(f"O {inimigo.nome} causou {dano_inimigo} de dano (reduzido).\n")
-                time.sleep(0.2)
+                
 
             elif acao == "3":
                 if self.tentar_fuga():
