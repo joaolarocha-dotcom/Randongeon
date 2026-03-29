@@ -19,7 +19,7 @@ class Jogador:
         xp      (int): Experiência acumulada ao longo das runs.
     """
 
-    def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0) -> None:
+    def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3) -> None:
         """
         Inicializa um Jogador com os atributos fornecidos.
 
@@ -40,12 +40,16 @@ class Jogador:
             raise ValueError("ATK inicial deve ser maior que zero.")
         if xp < 0:
             raise ValueError("XP inicial não pode ser negativo.")
+        if esq < 0:
+            raise ValueError("ESQUIVA inicial não pode ser negativa")
 
         self.nome   = nome
         self.hp_max = hp
         self.hp     = hp
         self.atk    = atk
         self.xp     = xp
+        self.esq = esq
+        self.esq_max = 1
 
     # ── Vida ──────────────────────────────────────────────────────────────────
 
@@ -97,7 +101,26 @@ class Jogador:
         hp_antes = self.hp
         self.hp  = min(self.hp_max, self.hp + quantidade)
         return self.hp - hp_antes
+    
+    def aumenta_esq(self, quantidade: int) -> int:
+        """
+        Restaura ESQ do jogador sem ultrapassar a ESQ máxima.
 
+        Parâmetros:
+            quantidade (int): Quantidade de ESQ a restaurar. Deve ser >= 0.
+
+        Retorna:
+            int: ESQ efetivamente recuperado.
+
+        Levanta:
+            ValueError: Se quantidade for negativa.
+        """
+        if quantidade < 0:
+            raise ValueError("Aumento de esquiva não pode ser negativo.")
+
+        esq_antes = self.esq
+        self.esq  = min(self.esq_max, self.esq + quantidade)
+        return self.esq - esq_antes
     # ── Progressão ────────────────────────────────────────────────────────────
 
     def ganhar_xp(self, quantidade: int) -> None:
