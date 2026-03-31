@@ -33,6 +33,7 @@ class Inimigo:
         atk: int,
         dificuldade: int,
         xp: int,
+        moedas: int
     ) -> None:
         """
         Inicializa um Inimigo com os atributos fornecidos.
@@ -57,12 +58,15 @@ class Inimigo:
             raise ValueError("Dificuldade deve ser >= 1.")
         if xp < 0:
             raise ValueError("XP concedido não pode ser negativo.")
+        if moedas < 0:
+            raise ValueError("moedas concedidas não podem ser negativas.")
 
         self.nome        = nome
         self.hp          = hp
         self.atk         = atk
         self.dificuldade = dificuldade
         self.xp          = xp
+        self.moedas      = moedas
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
@@ -126,14 +130,16 @@ class Inimigo:
             hp          = random.randint(8, 15)
             atk         = random.randint(3, 5)
             xp          = random.randint(25, 50)
+            moedas      = random.randint(6,11)
         else:
             dificuldade = 1
             nome        = random.choice(NOMES_DIFICULDADE_1)
             hp          = random.randint(3, 8)
             atk         = random.randint(1, 3)
             xp          = random.randint(10, 20)
+            moedas      = random.randint(0,5)
 
-        return Inimigo(nome, hp, atk, dificuldade, xp)
+        return Inimigo(nome, hp, atk, dificuldade, xp, moedas)
 
     # ── Representação ─────────────────────────────────────────────────────────
 
