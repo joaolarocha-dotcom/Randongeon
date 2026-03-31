@@ -14,6 +14,7 @@ from jogo.entidades.jogador import Jogador
 from jogo.entidades.inimigo import Inimigo
 from jogo.entidades.item import Item
 from jogo.sistemas.gerador import GeradorSala
+from jogo.entidades.loja import Loja
 
 
 # ── Constantes ────────────────────────────────────────────────────────────────
@@ -133,8 +134,9 @@ class Masmorra:
             return "derrota"
 
         self.jogador.ganhar_xp(inimigo.xp)
-        return "vitoria"
+        self.jogador.ganhar_moedas(inimigo.moedas)
 
+        return "vitoria"
     def tentar_fuga(self) -> bool:
         """
         Simula uma tentativa de fuga do combate.
@@ -172,9 +174,20 @@ class Masmorra:
         hp     = 20 + (fator * 10)
         atk    = 5  + (fator * 2)
         xp     = 50 + (fator * 25)
+        moedas = 15 + fator
         nome   = f"Guardião do Andar {self.andar}"
 
-        return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp)
+        return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp,moedas=moedas)
+    
+    def gerar_mimico(self) -> Inimigo:
+        hp     = 10
+        atk    = 3
+        xp     = 35
+        moedas = 7
+        nome   = "Mímico"
+
+        return Inimigo(nome, hp=hp, atk=atk, dificuldade=2, xp=xp,moedas=moedas)
+
 
     def aplicar_item(self, item: Item) -> dict:
         """
@@ -223,6 +236,7 @@ class Masmorra:
         print(f"ATK:   {self.jogador.atk}")
         print(f"ESQ:   {self.jogador.esq * 100}%")
         print(f"XP:    {self.jogador.xp}")
+        print(f"Moedas:    {self.jogador.moedas}")
         print(f"Andar: {self.andar}\n")
 
     def menu(self) -> str:
@@ -256,7 +270,7 @@ class Masmorra:
         Retorna:
             str: 'vitoria', 'derrota' ou 'fuga'.
         """
-        defendendo = False
+       
 
         while self.jogador.esta_vivo() and inimigo.esta_vivo():
             print("--- COMBATE ---\n")
@@ -314,6 +328,7 @@ class Masmorra:
             return "derrota"
 
         self.jogador.ganhar_xp(inimigo.xp)
+        self.jogador.ganhar_moedas(inimigo.moedas)
         return "vitoria"
 
     def avancar(self) -> None:
@@ -325,43 +340,73 @@ class Masmorra:
         print(f"\nVocê avançou para o andar {self.andar}...\n")
         time.sleep(0.25)
 
-        # Verifica se é andar de boss
+        # 1. Verifica se é andar de boss
         if self.e_andar_de_boss():
             print("⚠️  Um BOSS bloqueia o caminho!\n")
             time.sleep(0.4)
             boss = self.gerar_boss()
             resultado = self._combate_interativo(boss)
+        
         else:
+            # 2. Gera a sala (pode ser inimigo, item ou loja)
             tipo, conteudo, descricao = self.gerador.gerar_sala(self.andar)
             print(descricao + "\n")
             time.sleep(0.25)
 
-            if tipo == "item":
-                resultado_item = self.aplicar_item(conteudo)
-                print(f"Você encontrou: {conteudo.nome}!")
-                if "atk" in resultado_item:
-                    print(f"  ATK +{resultado_item['atk']}")
-                if "hp" in resultado_item:
-                    print(f"  HP  +{resultado_item['hp']}")
-                print()
-                return
+            # --- NOVA LÓGICA DE LOJA ---
+            if tipo == "loja":
+                print(" UM MERCADOR APARECEU!")
+                # Criamos a instância da loja e abrimos o menu
+                mercado = Loja()
+                mercado.menu(self.jogador)
+                return # Após sair da loja, o turno termina
+            # ---------------------------
+
+            elif tipo == "item":
+                bau = input("Você avista um baú antigo no centro da sala. Deseja abri-lo?\n1 - sim\n2 - não\n\n> ")
+                if bau == "1":
+                    resultado_item = self.aplicar_item(conteudo)
+                    print(f"Você encontrou: {conteudo.nome}!")
+                    if "atk" in resultado_item:
+                        print(f"  ATK +{resultado_item['atk']}")
+                    if "hp" in resultado_item:
+                        print(f"  HP  +{resultado_item['hp']}")
+                    if "esq" in resultado_item:
+                        print(f"  ESQ  +{resultado_item['esq']*100}%")
+                    print()
+                    return
+                else:
+                    print("\nVocê ignorou o baú\n")
+                    return
 
             elif tipo == "inimigo":
-                inimigo = conteudo
-                print(f"Um {inimigo.nome} apareceu!\n")
-                time.sleep(0.25)
-                resultado = self._combate_interativo(inimigo)
+                e_especial = random.randint(1, 20)
+                if e_especial == 1:
+                    bau = input("Você avista um baú antigo no centro da sala. Deseja abri-lo?\n1 - sim\n2 - não\n\n> ")
+                    if bau == "1":
+                        print("ERA UM MÍMICO DISFARÇADO!!!\n")
+                        mimico = self.gerar_mimico()
+                        resultado = self._combate_interativo(mimico)
+                    else: 
+                        return
+                else:
+                    inimigo = conteudo
+                    print(f"Um {inimigo.nome} apareceu!\n")
+                    time.sleep(0.25)
+                    resultado = self._combate_interativo(inimigo)
 
-        # Trata o resultado do combate
-        if resultado == "vitoria":
-            print(f"Você venceu o combate!\n")
-            time.sleep(0.25)
-        elif resultado == "derrota":
-            print(f"{self.jogador.nome} foi derrotado...\n")
-            time.sleep(0.25)
-        elif resultado == "fuga":
-            print("Você escapou!\n")
-            time.sleep(0.25)
+        # 3. Trata o resultado do combate (apenas se houve combate)
+        # Note: Se for loja ou item, o código dá 'return' antes de chegar aqui
+        if 'resultado' in locals():
+            if resultado == "vitoria":
+                print(f"Você venceu o combate!\n")
+                time.sleep(0.25)
+            elif resultado == "derrota":
+                print(f"{self.jogador.nome} foi derrotado...\n")
+                time.sleep(0.25)
+            elif resultado == "fuga":
+                print("Você escapou!\n")
+                time.sleep(0.25)
 
     def jogar(self) -> None:
         """
