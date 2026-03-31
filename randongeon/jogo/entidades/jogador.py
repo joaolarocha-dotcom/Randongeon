@@ -19,7 +19,7 @@ class Jogador:
         xp      (int): Experiência acumulada ao longo das runs.
     """
 
-    def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3) -> None:
+    def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3, moedas: int = 0) -> None:
         """
         Inicializa um Jogador com os atributos fornecidos.
 
@@ -50,6 +50,7 @@ class Jogador:
         self.xp     = xp
         self.esq = esq
         self.esq_max = 1
+        self.moedas = moedas
 
     # ── Vida ──────────────────────────────────────────────────────────────────
 
@@ -136,6 +137,20 @@ class Jogador:
         if quantidade < 0:
             raise ValueError("XP ganho não pode ser negativo.")
         self.xp += quantidade
+
+    def ganhar_moedas(self, quantidade: int) -> None:
+        """
+        Adiciona moedas ao jogador.
+
+        Parâmetros:
+            quantidade (int): Quantidade de moedas a ganhar. Deve ser >= 0.
+
+        Levanta:
+            ValueError: Se quantidade for negativa.
+        """
+        if quantidade < 0:
+            raise ValueError("moedas ganhas não podem ser negativas.")
+        self.moedas += quantidade
 
     # ── Representação ─────────────────────────────────────────────────────────
 
