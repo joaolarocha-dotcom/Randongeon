@@ -11,7 +11,7 @@ import random
 
 from jogo.entidades.inimigo import Inimigo, NOMES_DIFICULDADE_1, NOMES_DIFICULDADE_2
 from jogo.entidades.item import Item
-
+from jogo.entidades.loja import Loja
 
 # ── Dados estáticos das salas ─────────────────────────────────────────────────
 
@@ -28,8 +28,11 @@ CATALOGO_ITENS = [
     Item("Grande Poção de Força", bonus_atk=2),
     Item("Elixir Vital",          bonus_hp=5),
     Item("Erva Medicinal",        bonus_hp=3),
+    Item("Poção do Mestre Gato",  bonus_esq=0.05),
+    Item("Elixir do Mestre Mosca",bonus_esq=0.1),
     Item("Tônico do Guerreiro",   bonus_atk=1, bonus_hp=2),
 ]
+
 
 
 class GeradorSala:
@@ -49,7 +52,7 @@ class GeradorSala:
                             Exposto para facilitar testes determinísticos.
     """
 
-    def __init__(self, chance_item: int = 5) -> None:
+    def __init__(self, chance_item: int = 20) -> None:
         """
         Inicializa o GeradorSala.
 
@@ -67,34 +70,28 @@ class GeradorSala:
     # ── Interface pública ─────────────────────────────────────────────────────
 
     def gerar_sala(self, andar: int = 1) -> tuple:
-        """
-        Gera o conteúdo completo de uma sala.
-
-        Sorteia aleatoriamente entre item e inimigo, gera a descrição
-        do ambiente e retorna tudo em uma tupla sem realizar nenhum print.
-
-        Parâmetros:
-            andar (int): Andar atual da masmorra. Usado para escalar
-                         a dificuldade dos inimigos. Deve ser >= 1.
-
-        Retorna:
-            tuple: (tipo, conteudo, descricao)
-                - tipo      (str):  'item' ou 'inimigo'
-                - conteudo  (obj):  instância de Item ou Inimigo
-                - descricao (str):  descrição textual da sala
-
-        Levanta:
-            ValueError: Se andar for menor que 1.
-        """
         if andar < 1:
             raise ValueError("O andar deve ser >= 1.")
 
         descricao = random.choice(DESCRICOES_SALA)
+        
+        # Sorteio (1 a 10)
+        sorte = random.randint(1, 10)
 
-        if random.randint(1, self._chance_item) == 1:
+        if sorte == 1: # 10% chance de Loja
+            return self.gerar_loja() 
+        
+        elif sorte == 2: # 10% chance de Item
             return self.gerar_item(descricao)
-        else:
+        
+        else: # 80% chance de Inimigo
             return self.gerar_inimigo(andar, descricao)
+
+    def gerar_loja(self) -> tuple:
+        """Retorna a tupla correta para a Masmorra não dar erro de desempacotamento."""
+        desc = "Um mercador encapuzado brilha uma lanterna em sua direção."
+        # IMPORTANTE: Retornar exatamente 3 itens
+        return ("loja", None, desc)
 
     def gerar_item(self, descricao: str = "") -> tuple:
         """
@@ -127,4 +124,8 @@ class GeradorSala:
             raise ValueError("O andar deve ser >= 1.")
 
         inimigo = Inimigo.gerar(andar)
+
         return ("inimigo", inimigo, descricao)
+   # No gerador.py, adicione este método:
+
+ 

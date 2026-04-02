@@ -23,7 +23,7 @@ class Item:
         bonus_hp  (int): Bônus de HP concedido ao usar. Padrão 0.
     """
 
-    def __init__(self, nome: str, bonus_atk: int = 0, bonus_hp: int = 0) -> None:
+    def __init__(self, nome: str, bonus_atk: int = 0, bonus_hp: int = 0, bonus_esq: float = 0) -> None:
         """
         Inicializa um Item com os atributos fornecidos.
 
@@ -43,12 +43,15 @@ class Item:
             raise ValueError("bonus_atk não pode ser negativo.")
         if bonus_hp < 0:
             raise ValueError("bonus_hp não pode ser negativo.")
-        if bonus_atk == 0 and bonus_hp == 0:
-            raise ValueError("Um item deve ter pelo menos um bônus (atk ou hp) maior que zero.")
+        if bonus_esq < 0:
+            raise ValueError("bonus_esq não pode ser negativo.")
+        if bonus_atk == 0 and bonus_hp == 0 and bonus_esq == 0:
+            raise ValueError("Um item deve ter pelo menos um bônus (atk, hp, ou esq) maior que zero.")
 
         self.nome      = nome
         self.bonus_atk = bonus_atk
         self.bonus_hp  = bonus_hp
+        self.bonus_esq = bonus_esq
 
     # ── Uso ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +90,11 @@ class Item:
         if self.bonus_hp > 0:
             hp_recuperado    = jogador.curar(self.bonus_hp)
             resultado["hp"]  = hp_recuperado
+            
+        if self.bonus_esq > 0:
+            jogador.esq += self.bonus_esq
+            resultado["esq"] = self.bonus_esq
+            
 
         return resultado
 
