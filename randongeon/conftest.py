@@ -1,7 +1,5 @@
-# randongeon/conftest.py
-
 """
-Configuração global do pytest para o projeto randongeon.
+Configuração global do pytest para o projeto randongeon — v2.
 
 Este arquivo é carregado automaticamente pelo pytest antes de qualquer teste.
 Ele garante que o diretório raiz do projeto esteja no sys.path, permitindo
