@@ -325,7 +325,7 @@ class TestGerarMimico:
     def test_mimico_tem_nome_correto(self, masmorra_padrao):
         """Caminho feliz: nome do Mímico deve ser 'Mimico'."""
         mimico = masmorra_padrao.gerar_mimico()
-        assert "imico" in mimico.nome   # cobre 'Mimico' e 'Mímico'
+        assert mimico.nome in ("Mimico", "Mímico")   # cobre 'Mimico' e 'Mímico'
 
     def test_mimico_tem_dificuldade_2(self, masmorra_padrao):
         """Caminho feliz: Mímico é um inimigo elite (dificuldade=2)."""
