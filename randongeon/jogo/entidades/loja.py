@@ -7,10 +7,10 @@ from jogo.entidades.item import Item
 class Loja:
     def __init__(self):
         self.estoque = [
-            {"item": Item("Grande Poção de Força", bonus_atk=2),                          "preco": 15},
-            {"item": Item("Elixir Vital",          bonus_hp=8),                            "preco": 10},
-            {"item": Item("Elixir do Mestre Mosca", bonus_esq=0.1),                        "preco": 20},
-            {"item": Item("Tônico Supremo", bonus_atk=2, bonus_hp=5, bonus_esq=0.1),      "preco": 40},
+            {"item": Item("Grande Poção de Força", bonus_atk=2),                          "preco": 5},
+            {"item": Item("Elixir Vital",          bonus_hp=8),                            "preco": 6},
+            {"item": Item("Elixir do Mestre Mosca", bonus_esq=0.1),                        "preco": 10},
+            {"item": Item("Tônico Supremo", bonus_atk=2, bonus_hp=5, bonus_esq=0.1),      "preco": 20},
         ]
         self.ofertas = random.sample(self.estoque, 2)
 
