@@ -33,7 +33,11 @@ class Inimigo:
         atk: int,
         dificuldade: int,
         xp: int,
-        moedas: int
+        moedas: int,
+
+
+        hp_bonus: int,
+        atk_bonus: int
     ) -> None:
         """
         Inicializa um Inimigo com os atributos fornecidos.
@@ -67,6 +71,9 @@ class Inimigo:
         self.dificuldade = dificuldade
         self.xp          = xp
         self.moedas      = moedas
+
+        self.atk_bonus = atk_bonus
+        self.hp_bonus = hp_bonus
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
@@ -131,6 +138,9 @@ class Inimigo:
             atk         = random.randint(3, 5)
             xp          = random.randint(25, 50)
             moedas      = random.randint(6,11)
+
+            atk_bonus = 0
+            hp_bonus = 0
         else:
             dificuldade = 1
             nome        = random.choice(NOMES_DIFICULDADE_1)
@@ -139,7 +149,10 @@ class Inimigo:
             xp          = random.randint(10, 20)
             moedas      = random.randint(0,5)
 
-        return Inimigo(nome, hp, atk, dificuldade, xp, moedas)
+            atk_bonus = 0
+            hp_bonus = 0
+
+        return Inimigo(nome, hp, atk, dificuldade, xp, moedas, atk_bonus, hp_bonus)
 
     # ── Representação ─────────────────────────────────────────────────────────
 
