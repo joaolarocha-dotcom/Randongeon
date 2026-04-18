@@ -78,10 +78,12 @@ class GeradorSala:
         # Sorteio (1 a 10)
         sorte = random.randint(1, 10)
 
+        
+
         if sorte == 1: # 10% chance de Loja
             return self.gerar_loja() 
         
-        elif sorte == 2: # 10% chance de Item
+        elif sorte == 2 : # 10% chance de Item
             return self.gerar_item(descricao)
         
         else: # 80% chance de Inimigo
