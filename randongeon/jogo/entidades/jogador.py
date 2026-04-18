@@ -152,6 +152,33 @@ class Jogador:
             raise ValueError("moedas ganhas não podem ser negativas.")
         self.moedas += quantidade
 
+    def aumenta_hp_max(self, quantidade: int) -> None:
+        """
+        Adiciona moedas ao jogador.
+
+        Parâmetros:
+            quantidade (int): Quantidade de moedas a ganhar. Deve ser >= 0.
+
+        Levanta:
+            ValueError: Se quantidade for negativa.
+        """
+        if quantidade < 0:
+            raise ValueError("moedas ganhas não podem ser negativas.")
+        self.hp_max += quantidade
+
+    def aumenta_atk(self, quantidade: int) -> None:
+        """
+        Adiciona moedas ao jogador.
+
+        Parâmetros:
+            quantidade (int): Quantidade de moedas a ganhar. Deve ser >= 0.
+
+        Levanta:
+            ValueError: Se quantidade for negativa.
+        """
+        if quantidade < 0:
+            raise ValueError("moedas ganhas não podem ser negativas.")
+        self.atk += quantidade
     # ── Representação ─────────────────────────────────────────────────────────
 
     def __repr__(self) -> str:
