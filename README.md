@@ -31,6 +31,7 @@ Disciplina: Laboratório de Programação | Aracaju-SE, 2026
 7. [Testes Unitários](#7-testes-unitários)
 8. [Conceitos Aplicados da Disciplina](#8-conceitos-aplicados-da-disciplina)
 9. [Exemplos de Execução](#9-exemplos-de-execução)
+10. [Manual de Inicialização do Projeto](#10-manual-de-inicialização-do-projeto)
 
 ---
 
@@ -413,6 +414,198 @@ src/geradores/gerador_simples.py       14      0   100%
 -----------------------------------------------------------------
 TOTAL                                  68      3    96%
 ```
+
+---
+
+## 10. Manual de Inicialização do Projeto
+
+O Randongeon é composto por três módulos que trabalham juntos: o **backend de lógica** (Python puro), a **API REST** (FastAPI) e o **frontend web** (React + Vite). Abaixo está o passo a passo para colocar tudo rodando do zero.
+
+### 10.1 Pré-requisitos Gerais
+
+| Ferramenta | Versão mínima | Para quê |
+|------------|---------------|----------|
+| **Python** | 3.10+ | Backend e API |
+| **Node.js** | 18+ | Frontend |
+| **npm** | 9+ | Gerenciador de pacotes do frontend |
+| **Git** | 2.30+ | Clonar o repositório |
+
+### 10.2 Clonar o Repositório
+
+```bash
+git clone https://github.com/GabrielCNovaesDev/Randongeon.git
+cd Randongeon
+```
+
+### 10.3 Configurar o Backend (randongeon/)
+
+O módulo `randongeon/` contém toda a lógica do jogo e os testes unitários.
+
+```bash
+# Criar ambiente virtual
+python -m venv .venv
+
+# Ativar — Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Ativar — Windows (CMD)
+.venv\Scripts\activate.bat
+
+# Ativar — Linux / macOS
+source .venv/bin/activate
+
+# Instalar dependências de teste
+pip install -r randongeon/requirements.txt
+```
+
+**Verificar se está tudo certo:**
+
+```bash
+# Rodar os testes unitários
+pytest randongeon/tests/ -v
+
+# Rodar o jogo no terminal (modo texto)
+python randongeon/main.py
+```
+
+### 10.4 Configurar a API (api/)
+
+A API expõe a lógica do jogo via endpoints REST para o frontend consumir.
+
+```bash
+# Com o ambiente virtual ativo, instalar dependências da API
+pip install -r api/requirements.txt
+```
+
+**Iniciar o servidor:**
+
+```bash
+# A partir da raiz do projeto
+uvicorn api.main:app --reload --port 8000
+```
+
+O servidor estará disponível em `http://localhost:8000`. A documentação interativa (Swagger) fica em `http://localhost:8000/docs`.
+
+**Endpoints principais:**
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/game/new` | Criar nova partida |
+| GET | `/game/{id}/status` | Status do jogador |
+| GET | `/game/{id}/lore` | Texto de lore introdutória |
+| POST | `/game/{id}/advance` | Avançar para próxima sala |
+| POST | `/game/{id}/combat/attack` | Atacar inimigo |
+| POST | `/game/{id}/combat/dodge` | Esquivar e atacar |
+| POST | `/game/{id}/combat/flee` | Fugir do combate |
+| POST | `/game/{id}/chest/open` | Abrir baú |
+| POST | `/game/{id}/chest/ignore` | Ignorar baú |
+| POST | `/game/{id}/shop/buy` | Comprar item na loja |
+| POST | `/game/{id}/shop/leave` | Sair da loja |
+| POST | `/game/{id}/quit` | Desistir da partida |
+
+### 10.5 Configurar o Frontend (frontend/)
+
+O frontend é uma aplicação React com TypeScript e Vite.
+
+```bash
+# Entrar na pasta do frontend
+cd frontend
+
+# Instalar dependências
+npm install
+
+# Iniciar o servidor de desenvolvimento
+npm run dev
+```
+
+O frontend estará disponível em `http://localhost:5173` (porta padrão do Vite).
+
+**Outros comandos úteis:**
+
+```bash
+# Build de produção
+npm run build
+
+# Verificar lint
+npm run lint
+
+# Preview do build de produção
+npm run preview
+```
+
+### 10.6 Executar Tudo Junto (Resumo Rápido)
+
+**Forma mais fácil — um único comando:**
+
+```bash
+start.bat
+```
+
+O script `start.bat` na raiz do projeto faz tudo automaticamente:
+- Verifica se Python e Node.js estão instalados
+- Cria o ambiente virtual se necessário
+- Instala todas as dependências
+- Abre a API e o frontend em janelas separadas
+
+**Forma manual — três terminais:**
+
+**Terminal 1 — API:**
+```bash
+cd api
+..\.venv\Scripts\uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+**Terminal 3 — (Opcional) Testes:**
+```bash
+.venv\Scripts\activate.bat
+pytest randongeon/tests/ -v
+```
+
+### 10.7 Estrutura Atualizada do Projeto
+
+```
+Randongeon/
+├── api/                          # API REST (FastAPI)
+│   ├── main.py                   # Endpoints e lógica de roteamento
+│   ├── schemas.py                # Modelos Pydantic de request/response
+│   ├── session.py                # Gerenciamento de sessões em memória
+│   └── requirements.txt          # fastapi, uvicorn
+├── frontend/                     # Interface web (React + Vite)
+│   ├── src/
+│   │   ├── api/client.ts         # Cliente HTTP para a API
+│   │   ├── components/           # Componentes reutilizáveis (HPBar, DialogBox, etc.)
+│   │   ├── screens/              # Telas do jogo (Combat, Shop, Chest, etc.)
+│   │   ├── store/gameStore.ts    # Estado global (Zustand)
+│   │   ├── App.tsx               # Componente raiz
+│   │   └── main.tsx              # Ponto de entrada
+│   ├── package.json
+│   └── vite.config.ts
+├── randongeon/                   # Lógica do jogo (Python puro)
+│   ├── jogo/
+│   │   ├── entidades/            # Jogador, Inimigo, Item, Loja
+│   │   └── sistemas/             # Gerador de salas, Masmorra
+│   ├── tests/                    # Testes unitários (pytest)
+│   ├── main.py                   # Jogo no terminal (modo texto)
+│   ├── conftest.py               # Fixtures globais do pytest
+│   └── requirements.txt          # pytest, pytest-cov
+└── README.md
+```
+
+### 10.8 Solução de Problemas Comuns
+
+| Problema | Solução |
+|----------|---------|
+| `ModuleNotFoundError` ao rodar a API | Certifique-se de estar na raiz do projeto ao executar `uvicorn api.main:app` |
+| Frontend não conecta na API | Verifique se a API está rodando na porta 8000 |
+| Testes falham com import error | Ative o ambiente virtual e rode `pytest` a partir da raiz do projeto |
+| `npm install` falha | Verifique se Node.js 18+ está instalado (`node --version`) |
+| Porta 8000 já em uso | Use `uvicorn api.main:app --reload --port 8001` e ajuste o frontend |
 
 ---
 
