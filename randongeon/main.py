@@ -116,7 +116,6 @@ def main() -> None:
 
             if escolha == "1":
                 break  # volta ao loop principal para nova run
-
             elif escolha == "2":
                 exibir_ranking(historico)
 
