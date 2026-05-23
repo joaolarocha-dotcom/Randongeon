@@ -1,3 +1,5 @@
+# api/schemas.py
+
 from pydantic import BaseModel
 from typing import Optional
 
@@ -12,46 +14,47 @@ class NewGameResponse(BaseModel):
 
 
 class JogadorStatus(BaseModel):
-    nome: str
-    hp: int
-    hp_max: int
-    atk: int
-    esq: float
-    xp: int
-    moedas: int
-    andar: int
+    nome:    str
+    hp:      int
+    hp_max:  int
+    atk:     int
+    esq:     float
+    xp:      int
+    moedas:  int
+    andar:   int
 
 
 class SalaResponse(BaseModel):
-    tipo: str  # "inimigo", "item", "loja", "boss", "mimico"
+    tipo:     str       # "inimigo" | "item" | "loja" | "boss" | "mimico"
     descricao: str
-    andar: int
-    inimigo: Optional["InimigoInfo"] = None
-    item: Optional["ItemInfo"] = None
-    loja: Optional["LojaInfo"] = None
-    jogador: JogadorStatus
+    andar:    int
+    inimigo:  Optional["InimigoInfo"]  = None
+    item:     Optional["ItemInfo"]     = None
+    loja:     Optional["LojaInfo"]     = None
+    jogador:  JogadorStatus
 
 
 class InimigoInfo(BaseModel):
-    nome: str
-    hp: int
-    hp_max: int
-    atk: int
-    dificuldade: int
+    nome:          str
+    hp:            int
+    hp_max:        int
+    atk:           int
+    dificuldade:   int
+    tipo_especial: Optional[str] = None     # novo v3 — usado pelo frontend
 
 
 class ItemInfo(BaseModel):
-    nome: str
+    nome:      str
     bonus_atk: int
-    bonus_hp: int
+    bonus_hp:  int
     bonus_esq: float
 
 
 class LojaOferta(BaseModel):
-    nome: str
-    preco: int
+    nome:      str
+    preco:     int
     bonus_atk: int
-    bonus_hp: int
+    bonus_hp:  int
     bonus_esq: float
 
 
@@ -60,20 +63,22 @@ class LojaInfo(BaseModel):
 
 
 class CombatActionResponse(BaseModel):
-    resultado: str  # "continua", "vitoria", "derrota", "fuga"
-    mensagem: str
+    resultado:    str       # "continua" | "vitoria" | "derrota" | "fuga"
+    mensagem:     str
     dano_jogador: int
     dano_inimigo: int
-    jogador: JogadorStatus
-    inimigo: Optional[InimigoInfo] = None
+    jogador:      JogadorStatus
+    inimigo:      Optional[InimigoInfo] = None
+    # novo v3: indica ao frontend que o próximo ataque será bloqueado
+    jogador_atordoado: bool = False
 
 
 class ChestResponse(BaseModel):
-    tipo: str  # "item", "mimico"
+    tipo:     str           # "item" | "mimico"
     mensagem: str
-    item: Optional[ItemInfo] = None
-    inimigo: Optional[InimigoInfo] = None
-    jogador: JogadorStatus
+    item:     Optional[ItemInfo]    = None
+    inimigo:  Optional[InimigoInfo] = None
+    jogador:  JogadorStatus
 
 
 class ShopBuyRequest(BaseModel):
@@ -81,10 +86,10 @@ class ShopBuyRequest(BaseModel):
 
 
 class ShopBuyResponse(BaseModel):
-    sucesso: bool
+    sucesso:  bool
     mensagem: str
-    jogador: JogadorStatus
-    loja: Optional[LojaInfo] = None
+    jogador:  JogadorStatus
+    loja:     Optional[LojaInfo] = None
 
 
 class LoreResponse(BaseModel):
@@ -93,4 +98,4 @@ class LoreResponse(BaseModel):
 
 class GameOverResponse(BaseModel):
     mensagem: str
-    jogador: JogadorStatus
+    jogador:  JogadorStatus
