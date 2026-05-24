@@ -2,6 +2,10 @@ import sys
 import os
 import random
 
+# Permite rodar `uvicorn api.main:app` da raiz E `uvicorn main:app` de dentro de api/.
+# Sem isso, os imports `from session import ...` falham quando rodado da raiz
+# porque a pasta api/ não está automaticamente no sys.path nesse caso.
+sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "randongeon"))
 
 from fastapi import FastAPI, HTTPException

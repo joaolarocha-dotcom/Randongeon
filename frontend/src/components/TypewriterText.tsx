@@ -11,6 +11,9 @@ export function TypewriterText({ text, speed = 40, onComplete }: Props) {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    // Reset síncrono ao mudar text/speed é intencional: sem ele o componente
+    // mostraria o texto antigo enquanto o novo digita.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisplayed("");
     setDone(false);
     let i = 0;
@@ -24,6 +27,8 @@ export function TypewriterText({ text, speed = 40, onComplete }: Props) {
       }
     }, speed);
     return () => clearInterval(interval);
+    // onComplete intencionalmente fora das deps para evitar re-disparo a cada render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, speed]);
 
   const skip = () => {
