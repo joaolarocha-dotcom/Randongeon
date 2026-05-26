@@ -14,7 +14,9 @@ export function BattleStage({ bgImage, children }: Props) {
       className="poke-arena fade-in"
       style={{
         backgroundImage: `url(${bgImage})`,
-        flex: "0 0 60%",
+        backgroundSize: "115%",
+        backgroundPosition: "center 60%",
+        flex: "0 0 68%",
         position: "relative",
       }}
     >

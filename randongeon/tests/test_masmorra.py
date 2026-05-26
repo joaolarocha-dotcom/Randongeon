@@ -497,9 +497,9 @@ class TestSequenciasIntegracao:
 
     def test_boss_mais_forte_que_inimigo_comum_no_mesmo_andar(self, masmorra_padrao):
         """Comparação: boss gerado deve ter mais hp e atk que inimigo comum."""
-        masmorra_padrao.andar = 5
+        masmorra_padrao.andar = 10
         boss  = masmorra_padrao.gerar_boss()
-        comum = Inimigo.gerar(andar=5)
+        comum = Inimigo.gerar(andar=10)
         assert boss.hp  > comum.hp
         assert boss.atk > comum.atk
 

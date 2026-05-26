@@ -30,9 +30,11 @@ export function CombatScreen() {
   const combatAttack = useGameStore((s) => s.combatAttack);
   const combatDodge = useGameStore((s) => s.combatDodge);
   const combatFlee = useGameStore((s) => s.combatFlee);
+  const combatUseItem = useGameStore((s) => s.combatUseItem);
   const loading = useGameStore((s) => s.loading);
   const setAnimPhase = useGameStore((s) => s.setAnimPhase);
   const enqueueDialog = useGameStore((s) => s.enqueueDialog);
+  const [showInventory, setShowInventory] = useState(false);
 
   // HPs animados
   const animatedPlayerHP = useAnimatedHP(jogador?.hp ?? 0, { duration: 700, playTickSound: true });
@@ -130,11 +132,11 @@ export function CombatScreen() {
           <EnemyStatusBox inimigo={inimigo} displayedHP={animatedEnemyHP} />
         </div>
 
-        {/* Sprite do inimigo no topo-direito */}
-        <EnemySprite inimigo={inimigo} animClass={enemyAnim} scale={3} />
+        {/* Sprite do inimigo no topo-direito — escala menor para criar perspectiva */}
+        <EnemySprite inimigo={inimigo} animClass={enemyAnim} scale={2.5} />
 
-        {/* Sprite do jogador no meio-esquerdo */}
-        <PlayerSprite animClass={playerAnim} scale={3} />
+        {/* Sprite do jogador no meio-esquerdo — escala maior para parecer "à frente" */}
+        <PlayerSprite animClass={playerAnim} scale={4} />
 
         {/* Status do jogador no meio-direito */}
         <div style={{ position: "absolute", bottom: 8, right: 8 }}>
@@ -145,7 +147,7 @@ export function CombatScreen() {
       {/* Metade inferior: UI */}
       <div
         style={{
-          flex: "1 1 40%",
+          flex: "1 1 32%",
           padding: 8,
           display: "flex",
           flexDirection: "column",
@@ -154,34 +156,58 @@ export function CombatScreen() {
         }}
       >
         {showMenu ? (
-          <BattleMenu
-            prompt={`O que ${jogador.nome.toUpperCase()} vai fazer?`}
-            items={[
-              {
-                label: "LUTAR",
-                onClick: combatAttack,
-                disabled: loading,
-              },
-              {
-                label: "ITEM",
-                onClick: () => {
-                  enqueueDialog("Sem itens utilizáveis no inventário.");
+          showInventory ? (
+            <BattleMenu
+              prompt="USAR ITEM"
+              items={[
+                ...jogador.inventario.map((it, idx) => ({
+                  label: `${it.nome.toUpperCase()}`,
+                  onClick: async () => {
+                    setShowInventory(false);
+                    await combatUseItem(idx);
+                  },
+                  disabled: loading,
+                })),
+                {
+                  label: "VOLTAR",
+                  onClick: () => setShowInventory(false),
+                  disabled: loading,
                 },
-                disabled: false,
-                hint: "Em breve",
-              },
-              {
-                label: "ESQUIVAR",
-                onClick: combatDodge,
-                disabled: loading,
-              },
-              {
-                label: "FUGIR",
-                onClick: combatFlee,
-                disabled: loading,
-              },
-            ]}
-          />
+              ]}
+            />
+          ) : (
+            <BattleMenu
+              prompt={`O que ${jogador.nome.toUpperCase()} vai fazer?`}
+              items={[
+                {
+                  label: "LUTAR",
+                  onClick: combatAttack,
+                  disabled: loading,
+                },
+                {
+                  label: "ITEM",
+                  onClick: () => {
+                    if (jogador.inventario.length === 0) {
+                      enqueueDialog("Inventário vazio.");
+                      return;
+                    }
+                    setShowInventory(true);
+                  },
+                  disabled: loading,
+                },
+                {
+                  label: "ESQUIVAR",
+                  onClick: combatDodge,
+                  disabled: loading,
+                },
+                {
+                  label: "FUGIR",
+                  onClick: combatFlee,
+                  disabled: loading,
+                },
+              ]}
+            />
+          )
         ) : (
           <BattleDialog
             interactive

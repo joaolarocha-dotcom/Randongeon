@@ -6,7 +6,7 @@ import { audio } from "../components/audio/AudioEngine";
 export function TitleScreen() {
   const [nome, setNome] = useState("");
   const [logoSrc, setLogoSrc] = useState(LOGO_SPRITE.src);
-  const { startGame, loading, error } = useGameStore();
+  const { startGame, loading, error, pendingModo, goToMainMenu } = useGameStore();
 
   // Tenta tocar o BGM do título no primeiro mount; o browser pode bloquear
   // até o primeiro clique. O onClick do submit garante o playback.
@@ -52,7 +52,7 @@ export function TitleScreen() {
       />
 
       <p style={{ fontSize: "var(--font-size-sm)", color: "#000", textShadow: "1px 1px 0 #fff" }}>
-        A Masmorra Sem Fim
+        {pendingModo === "infinite" ? "Modo Infinito" : "A Masmorra Sem Fim"}
       </p>
 
       <form
@@ -78,9 +78,22 @@ export function TitleScreen() {
             width: 200,
           }}
         />
-        <button className="poke-btn" type="submit" disabled={loading || !nome.trim()}>
-          {loading ? "..." : "INICIAR"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="poke-btn"
+            type="button"
+            onClick={() => {
+              audio.playSfx("sfx_menu_cancel");
+              goToMainMenu();
+            }}
+            disabled={loading}
+          >
+            VOLTAR
+          </button>
+          <button className="poke-btn" type="submit" disabled={loading || !nome.trim()}>
+            {loading ? "..." : "INICIAR"}
+          </button>
+        </div>
       </form>
 
       {error && (

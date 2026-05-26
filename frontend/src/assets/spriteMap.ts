@@ -35,7 +35,7 @@ const ENEMY_SPRITES: Record<string, SpriteInfo> = {
   // Dificuldade 1
   "Goblin": s("goblin.png", 50, 50),
   "Rato Gigante": s("rato.png", 50, 50),
-  "Zumbi": s("nosferatu.png", 50, 50), // Zumbi foi reskinado para Nosferatu
+  "Nosferatu": s("nosferatu.png", 50, 50),
 
   // Dificuldade 2
   "Esqueleto Guerreiro": s("esqueleto.png", 60, 60),
@@ -73,5 +73,5 @@ export function getEnemySprite(nome: string, dificuldade: number): SpriteInfo {
 }
 
 // Logo + ícone de moeda
-export const LOGO_SPRITE: SpriteInfo = s("logo_randongeon.png", 240, 80);
-export const COIN_ICON: SpriteInfo = s("coin_icon.png", 16, 16);
+export const LOGO_SPRITE: SpriteInfo = s("logo.png", 240, 80);
+export const COIN_ICON: SpriteInfo = s("coin.png", 16, 16);

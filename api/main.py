@@ -11,17 +11,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "randongeon"))
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from session import GameState, create_session, get_session, delete_session
+from session import GameState, create_session, get_session, delete_session, register_session
 from schemas import (
-    NewGameRequest, NewGameResponse, JogadorStatus, SalaResponse,
+    NewGameRequest, NewGameResponse, JogadorStatus, ItemInventario, SalaResponse,
     InimigoInfo, ItemInfo, LojaInfo, LojaOferta, CombatActionResponse,
     ChestResponse, ShopBuyRequest, ShopBuyResponse, LoreResponse,
-    GameOverResponse,
+    GameOverResponse, UseItemRequest, UseItemResponse,
+    SaveStateResponse, LoadStateRequest, LoadStateResponse,
 )
 
 from jogo.entidades.inimigo import Inimigo
 from jogo.entidades.loja import Loja
 from jogo.sistemas.masmorra import LORE
+from jogo.sistemas.persistencia import serializar_estado, desserializar_estado
 
 app = FastAPI(title="Randongeon API")
 
@@ -52,7 +54,26 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         xp=j.xp,
         moedas=j.moedas,
         andar=state.masmorra.andar,
+        inventario=[ItemInventario(**raw) for raw in j.inventario_resumo()],
     )
+
+
+def _aplicar_vitoria(state: GameState, inimigo: Inimigo) -> None:
+    """
+    Centraliza efeitos colaterais da vitória em combate:
+      - XP + moedas do inimigo derrotado.
+      - Se for boss (dificuldade=3): cura 40% do HP_max e marca a próxima
+        sala como loja garantida.
+    """
+    jogador = state.masmorra.jogador
+    jogador.ganhar_xp(inimigo.xp)
+    jogador.ganhar_moedas(inimigo.moedas)
+    state.inimigo_ativo = None
+
+    if inimigo.dificuldade == 3:
+        cura = max(1, jogador.hp_max * 40 // 100)
+        jogador.curar(cura)
+        state.pending_shop_after_boss = True
 
 
 def _inimigo_info(inimigo: Inimigo, hp_max: int = None) -> InimigoInfo:
@@ -86,8 +107,12 @@ def _loja_info(loja: Loja) -> LojaInfo:
 def new_game(req: NewGameRequest):
     if not req.nome.strip():
         raise HTTPException(status_code=400, detail="Nome não pode ser vazio.")
-    session_id, state = create_session(req.nome.strip())
-    return NewGameResponse(session_id=session_id, jogador=_jogador_status(state))
+    session_id, state = create_session(req.nome.strip(), modo=req.modo)
+    return NewGameResponse(
+        session_id=session_id,
+        jogador=_jogador_status(state),
+        modo=state.modo,
+    )
 
 
 @app.get("/game/{session_id}/status", response_model=JogadorStatus)
@@ -121,6 +146,20 @@ def advance(session_id: str):
             descricao=f"⚠️ Um BOSS bloqueia o caminho! {boss.nome} apareceu!",
             andar=masmorra.andar,
             inimigo=_inimigo_info(boss),
+            jogador=_jogador_status(state),
+        )
+
+    # Loja garantida após boss derrotado (consome a flag).
+    if state.pending_shop_after_boss:
+        state.pending_shop_after_boss = False
+        loja = Loja()
+        state.loja_ativa = loja
+        state.inimigo_ativo = None
+        return SalaResponse(
+            tipo="loja",
+            descricao="Após a vitória, um mercador surge das sombras com ofertas raras.",
+            andar=masmorra.andar,
+            loja=_loja_info(loja),
             jogador=_jogador_status(state),
         )
 
@@ -220,9 +259,7 @@ def combat_attack(session_id: str):
         )
 
     if not inimigo.esta_vivo():
-        jogador.ganhar_xp(inimigo.xp)
-        jogador.ganhar_moedas(inimigo.moedas)
-        state.inimigo_ativo = None
+        _aplicar_vitoria(state, inimigo)
         return CombatActionResponse(
             resultado="vitoria",
             mensagem=f"Você derrotou {inimigo.nome}! +{inimigo.xp} XP, +{inimigo.moedas} moedas.",
@@ -274,9 +311,7 @@ def combat_dodge(session_id: str):
         )
 
     if not inimigo.esta_vivo():
-        jogador.ganhar_xp(inimigo.xp)
-        jogador.ganhar_moedas(inimigo.moedas)
-        state.inimigo_ativo = None
+        _aplicar_vitoria(state, inimigo)
         return CombatActionResponse(
             resultado="vitoria",
             mensagem=f"Você derrotou {inimigo.nome}! +{inimigo.xp} XP, +{inimigo.moedas} moedas.",
@@ -369,11 +404,11 @@ def chest_open(session_id: str):
     if item is None:
         raise HTTPException(status_code=400, detail="Nenhum item no baú.")
 
-    resultado = state.masmorra.aplicar_item(item)
+    state.masmorra.jogador.adicionar_item(item)
     state.sala_pendente = None
     return ChestResponse(
         tipo="item",
-        mensagem=f"Você encontrou: {item.nome}!",
+        mensagem=f"Você encontrou: {item.nome}! Adicionado ao inventário.",
         item=ItemInfo(
             nome=item.nome,
             bonus_atk=item.bonus_atk,
@@ -445,3 +480,65 @@ def quit_game(session_id: str):
     )
     delete_session(session_id)
     return response
+
+
+# ── Inventário ────────────────────────────────────────────────────────────────
+
+
+@app.post("/game/{session_id}/inventory/use", response_model=UseItemResponse)
+def inventory_use(session_id: str, req: UseItemRequest):
+    state = _get_state(session_id)
+    jogador = state.masmorra.jogador
+
+    if req.indice < 0 or req.indice >= len(jogador.inventario):
+        return UseItemResponse(
+            sucesso=False,
+            mensagem="Índice de inventário inválido.",
+            efeito={},
+            jogador=_jogador_status(state),
+        )
+
+    item = jogador.inventario[req.indice]
+    efeito = jogador.usar_item(req.indice)
+
+    partes = []
+    if "atk" in efeito:
+        partes.append(f"ATK +{efeito['atk']}")
+    if "hp" in efeito:
+        partes.append(f"HP +{efeito['hp']}")
+    if "esq" in efeito:
+        partes.append(f"ESQ +{int(round(efeito['esq'] * 100))}%")
+    detalhe = ", ".join(partes) if partes else "sem efeito"
+
+    return UseItemResponse(
+        sucesso=True,
+        mensagem=f"Você usou {item.nome} ({detalhe}).",
+        efeito=efeito,
+        jogador=_jogador_status(state),
+    )
+
+
+# ── Save / Load ───────────────────────────────────────────────────────────────
+
+
+@app.get("/game/{session_id}/save", response_model=SaveStateResponse)
+def save_state(session_id: str):
+    state = _get_state(session_id)
+    data = serializar_estado(state.masmorra.jogador, state.masmorra, state.modo)
+    return SaveStateResponse(**data)
+
+
+@app.post("/game/load", response_model=LoadStateResponse)
+def load_state(payload: LoadStateRequest):
+    try:
+        jogador, masmorra, modo = desserializar_estado(payload.model_dump())
+    except (KeyError, ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Save inválido: {e}")
+
+    state = GameState(masmorra=masmorra, modo=modo)
+    session_id = register_session(state)
+    return LoadStateResponse(
+        session_id=session_id,
+        jogador=_jogador_status(state),
+        modo=modo,
+    )

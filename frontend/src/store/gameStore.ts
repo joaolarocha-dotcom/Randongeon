@@ -6,6 +6,8 @@ import type {
   ItemInfo,
   LojaInfo,
   CombatActionResponse,
+  Modo,
+  SaveState,
 } from "../api/client";
 import { audio } from "../components/audio/AudioEngine";
 import { getArenaMusic } from "../assets/bgMap";
@@ -37,6 +39,10 @@ function cancelAllTimeouts() {
 }
 
 export type Screen =
+  | "main_menu"
+  | "tutorials"
+  | "load_game"
+  | "settings"
   | "title"
   | "lore"
   | "menu"
@@ -74,6 +80,8 @@ interface GameStore {
   // Estado de jogo
   screen: Screen;
   sessionId: string | null;
+  modo: Modo;
+  pendingModo: Modo;
   jogador: JogadorStatus | null;
   inimigo: InimigoInfo | null;
   item: ItemInfo | null;
@@ -100,19 +108,30 @@ interface GameStore {
   /** XP no início do último combate (para calcular ganho). */
   lastXpSnapshot: number;
 
+  // Navegação de telas (fora do jogo)
+  goToMainMenu: () => void;
+  goToTutorials: () => void;
+  goToLoadGame: () => void;
+  goToSettings: () => void;
+  goToTitle: (modo?: Modo) => void;
+
   // Actions principais (jogo)
   startGame: (nome: string) => Promise<void>;
+  loadFromSave: (save: SaveState) => Promise<void>;
   fetchLore: () => Promise<void>;
   goToMenu: () => void;
   advance: () => Promise<void>;
   combatAttack: () => Promise<void>;
   combatDodge: () => Promise<void>;
   combatFlee: () => Promise<void>;
+  combatUseItem: (indice: number) => Promise<void>;
   openChest: () => Promise<void>;
   ignoreChest: () => Promise<void>;
   shopBuy: (indice: number) => Promise<void>;
   shopLeave: () => Promise<void>;
   quit: () => Promise<void>;
+  /** Aborta a run atual e volta ao menu principal sem game-over. */
+  exitToMainMenu: () => Promise<void>;
   reset: () => void;
 
   // Actions de animação
@@ -126,8 +145,10 @@ interface GameStore {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
-  screen: "title",
+  screen: "main_menu",
   sessionId: null,
+  modo: "story",
+  pendingModo: "story",
   jogador: null,
   inimigo: null,
   item: null,
@@ -147,20 +168,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
   floorTransitionAndar: null,
   lastXpSnapshot: 0,
 
+  // ───────── Navegação ─────────
+
+  goToMainMenu: () => {
+    cancelAllTimeouts();
+    set({ screen: "main_menu", error: null });
+    audio.playMusic("bgm_title");
+  },
+  goToTutorials: () => set({ screen: "tutorials" }),
+  goToLoadGame: () => set({ screen: "load_game" }),
+  goToSettings: () => set({ screen: "settings" }),
+  goToTitle: (modo: Modo = "story") => set({ screen: "title", pendingModo: modo, error: null }),
+
   // ───────── Jogo ─────────
 
   startGame: async (nome: string) => {
     set({ loading: true, error: null });
     try {
-      const res = await api.newGame(nome);
+      const modo = get().pendingModo;
+      const res = await api.newGame(nome, modo);
       set({
         sessionId: res.session_id,
+        modo: res.modo,
         jogador: res.jogador,
         displayedPlayerHP: res.jogador.hp,
         screen: "lore",
         loading: false,
       });
       audio.playMusic("bgm_title");
+    } catch (e) {
+      set({ error: errorMessage(e), loading: false });
+    }
+  },
+
+  loadFromSave: async (save) => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.loadGame(save);
+      set({
+        sessionId: res.session_id,
+        modo: res.modo,
+        jogador: res.jogador,
+        displayedPlayerHP: res.jogador.hp,
+        screen: "menu",
+        loading: false,
+      });
+      audio.playMusic("bgm_dungeon");
     } catch (e) {
       set({ error: errorMessage(e), loading: false });
     }
@@ -275,6 +328,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  combatUseItem: async (indice: number) => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+    audio.playSfx("sfx_item_get");
+    set({ loading: true });
+    try {
+      const res = await api.inventoryUse(sessionId, indice);
+      set({
+        jogador: res.jogador,
+        loading: false,
+      });
+      get().enqueueDialog(res.mensagem);
+    } catch (e) {
+      set({ error: errorMessage(e), loading: false });
+    }
+  },
+
   openChest: async () => {
     const { sessionId } = get();
     if (!sessionId) return;
@@ -370,12 +440,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
+  exitToMainMenu: async () => {
+    const { sessionId } = get();
+    cancelAllTimeouts();
+    if (sessionId) {
+      // Encerra a sessão no backend; ignora erro caso a sessão já tenha sumido.
+      try {
+        await api.quit(sessionId);
+      } catch {
+        // silencioso
+      }
+    }
+    get().reset();
+  },
+
   reset: () => {
     audio.stopMusic();
     cancelAllTimeouts();
     set({
-      screen: "title",
+      screen: "main_menu",
       sessionId: null,
+      modo: "story",
+      pendingModo: "story",
       jogador: null,
       inimigo: null,
       item: null,
@@ -394,6 +480,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       floorTransitionAndar: null,
       lastXpSnapshot: 0,
     });
+    audio.playMusic("bgm_title");
   },
 
   // ───────── Animação ─────────

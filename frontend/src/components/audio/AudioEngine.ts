@@ -47,6 +47,8 @@ class AudioEngine {
   private sfxCache = new Map<string, HTMLAudioElement>();
   private currentMusic: HTMLAudioElement | null = null;
   private currentMusicKey: string | null = null;
+  /** Última música solicitada via playMusic/playJingle. Mantida mesmo após mute para permitir retomar. */
+  private lastRequestedMusicKey: string | null = null;
   private musicVolume = 0.35;
   private sfxVolume = 0.5;
   private muted = false;
@@ -103,6 +105,7 @@ class AudioEngine {
    * Faz fade-out simples da anterior em ~200ms.
    */
   playMusic(key: string, volume?: number) {
+    this.lastRequestedMusicKey = key;
     if (this.muted) return;
     if (this.currentMusicKey === key && this.currentMusic && !this.currentMusic.paused) return;
 
@@ -134,6 +137,7 @@ class AudioEngine {
 
   /** Toca uma faixa one-shot (não-loop). Para BGM atual e retoma depois? Não — apenas para. */
   playJingle(key: string, volume?: number) {
+    this.lastRequestedMusicKey = key;
     if (this.muted) return;
     const path = this.resolve(key);
     if (!path) return;
@@ -177,8 +181,14 @@ class AudioEngine {
   }
 
   setMuted(muted: boolean) {
+    const wasMuted = this.muted;
     this.muted = muted;
-    if (muted) this.stopMusic();
+    if (muted) {
+      this.stopMusic();
+    } else if (wasMuted && this.lastRequestedMusicKey) {
+      // Retoma a última música pedida ao desmutar.
+      this.playMusic(this.lastRequestedMusicKey);
+    }
   }
 
   isMuted() {

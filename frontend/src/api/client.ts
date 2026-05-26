@@ -12,6 +12,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export type Modo = "story" | "infinite";
+
+export interface ItemInventario {
+  nome: string;
+  bonus_atk: number;
+  bonus_hp: number;
+  bonus_esq: number;
+}
+
 export interface JogadorStatus {
   nome: string;
   hp: number;
@@ -21,6 +30,7 @@ export interface JogadorStatus {
   xp: number;
   moedas: number;
   andar: number;
+  inventario: ItemInventario[];
 }
 
 export interface InimigoInfo {
@@ -93,11 +103,33 @@ export interface GameOverResponse {
   jogador: JogadorStatus;
 }
 
+export interface UseItemResponse {
+  sucesso: boolean;
+  mensagem: string;
+  efeito: Record<string, number>;
+  jogador: JogadorStatus;
+}
+
+export interface SaveState {
+  version: number;
+  savedAt: string;
+  playerName: string;
+  andar: number;
+  modo: Modo;
+  jogador: Record<string, unknown>;
+}
+
+export interface LoadStateResponse {
+  session_id: string;
+  jogador: JogadorStatus;
+  modo: Modo;
+}
+
 export const api = {
-  newGame: (nome: string) =>
-    request<{ session_id: string; jogador: JogadorStatus }>("/game/new", {
+  newGame: (nome: string, modo: Modo = "story") =>
+    request<{ session_id: string; jogador: JogadorStatus; modo: Modo }>("/game/new", {
       method: "POST",
-      body: JSON.stringify({ nome }),
+      body: JSON.stringify({ nome, modo }),
     }),
 
   getStatus: (id: string) =>
@@ -135,4 +167,19 @@ export const api = {
 
   quit: (id: string) =>
     request<GameOverResponse>(`/game/${id}/quit`, { method: "POST" }),
+
+  inventoryUse: (id: string, indice: number) =>
+    request<UseItemResponse>(`/game/${id}/inventory/use`, {
+      method: "POST",
+      body: JSON.stringify({ indice }),
+    }),
+
+  saveGame: (id: string) =>
+    request<SaveState>(`/game/${id}/save`),
+
+  loadGame: (save: SaveState) =>
+    request<LoadStateResponse>(`/game/load`, {
+      method: "POST",
+      body: JSON.stringify(save),
+    }),
 };
