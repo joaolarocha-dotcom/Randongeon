@@ -51,6 +51,7 @@ class Jogador:
         self.esq = esq
         self.esq_max = 1
         self.moedas = moedas
+        self.inventario: list = []
 
     # ── Vida ──────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,57 @@ class Jogador:
         if quantidade < 0:
             raise ValueError("moedas ganhas não podem ser negativas.")
         self.moedas += quantidade
+
+    # ── Inventário ────────────────────────────────────────────────────────────
+
+    def adicionar_item(self, item) -> None:
+        """
+        Adiciona um Item ao inventário do jogador.
+
+        Parâmetros:
+            item: Instância de Item. Não pode ser None.
+
+        Levanta:
+            ValueError: Se item for None.
+        """
+        if item is None:
+            raise ValueError("Item não pode ser None.")
+        self.inventario.append(item)
+
+    def usar_item(self, indice: int) -> dict:
+        """
+        Usa o item do inventário no índice fornecido e o remove da lista.
+
+        Parâmetros:
+            indice (int): Posição do item no inventário (0-based).
+
+        Retorna:
+            dict: Resultado do efeito aplicado (mesmo formato de Item.usar()).
+
+        Levanta:
+            IndexError: Se o índice for inválido.
+        """
+        if indice < 0 or indice >= len(self.inventario):
+            raise IndexError("Índice de inventário inválido.")
+        item = self.inventario.pop(indice)
+        return item.usar(self)
+
+    def inventario_resumo(self) -> list[dict]:
+        """
+        Retorna uma representação serializável do inventário.
+
+        Retorna:
+            list[dict]: Cada elemento contém nome e bônus do item.
+        """
+        return [
+            {
+                "nome": it.nome,
+                "bonus_atk": it.bonus_atk,
+                "bonus_hp": it.bonus_hp,
+                "bonus_esq": it.bonus_esq,
+            }
+            for it in self.inventario
+        ]
 
     # ── Representação ─────────────────────────────────────────────────────────
 

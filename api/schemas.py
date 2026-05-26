@@ -1,14 +1,23 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 
 
 class NewGameRequest(BaseModel):
     nome: str
+    modo: Literal["story", "infinite"] = "story"
 
 
 class NewGameResponse(BaseModel):
     session_id: str
     jogador: "JogadorStatus"
+    modo: Literal["story", "infinite"] = "story"
+
+
+class ItemInventario(BaseModel):
+    nome: str
+    bonus_atk: int
+    bonus_hp: int
+    bonus_esq: float
 
 
 class JogadorStatus(BaseModel):
@@ -20,6 +29,7 @@ class JogadorStatus(BaseModel):
     xp: int
     moedas: int
     andar: int
+    inventario: list[ItemInventario] = []
 
 
 class SalaResponse(BaseModel):
@@ -94,3 +104,38 @@ class LoreResponse(BaseModel):
 class GameOverResponse(BaseModel):
     mensagem: str
     jogador: JogadorStatus
+
+
+class UseItemRequest(BaseModel):
+    indice: int
+
+
+class UseItemResponse(BaseModel):
+    sucesso: bool
+    mensagem: str
+    efeito: dict = {}
+    jogador: JogadorStatus
+
+
+class SaveStateResponse(BaseModel):
+    version: int
+    savedAt: str
+    playerName: str
+    andar: int
+    modo: Literal["story", "infinite"]
+    jogador: dict
+
+
+class LoadStateRequest(BaseModel):
+    version: int
+    savedAt: Optional[str] = None
+    playerName: str
+    andar: int
+    modo: Literal["story", "infinite"] = "story"
+    jogador: dict
+
+
+class LoadStateResponse(BaseModel):
+    session_id: str
+    jogador: JogadorStatus
+    modo: Literal["story", "infinite"]

@@ -1,7 +1,28 @@
+import { useState } from "react";
 import { useGameStore } from "../store/gameStore";
+import {
+  CHEST_CLOSED,
+  CHEST_OPEN,
+  FALLBACK_SPRITE_PATH,
+} from "../assets/spriteMap";
+import { BG } from "../assets/bgMap";
+import { audio } from "../components/audio/AudioEngine";
 
 export function ChestScreen() {
   const { descricaoSala, item, openChest, ignoreChest, loading } = useGameStore();
+  const [opened, setOpened] = useState(false);
+  const [chestSrc, setChestSrc] = useState(CHEST_CLOSED.src);
+
+  const handleOpen = () => {
+    setOpened(true);
+    setChestSrc(CHEST_OPEN.src);
+    openChest();
+  };
+
+  const handleIgnore = () => {
+    audio.playSfx("sfx_menu_cancel");
+    ignoreChest();
+  };
 
   return (
     <div
@@ -10,48 +31,99 @@ export function ChestScreen() {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 20,
-        padding: 24,
+        background: "var(--poke-bg)",
       }}
     >
-      {/* Chest sprite placeholder */}
+      {/* Cenário superior */}
       <div
+        className="poke-arena"
         style={{
-          width: 64,
-          height: 64,
-          backgroundColor: "var(--gold)",
-          opacity: 0.8,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "32px",
+          backgroundImage: `url(${BG.chestRoom})`,
+          flex: "0 0 55%",
+          position: "relative",
         }}
       >
-        🎁
+        <img
+          src={chestSrc}
+          alt="Baú"
+          onError={() => {
+            if (chestSrc !== FALLBACK_SPRITE_PATH) setChestSrc(FALLBACK_SPRITE_PATH);
+          }}
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: "10%",
+            transform: "translateX(-50%)",
+            width: CHEST_CLOSED.w * 3,
+            height: CHEST_CLOSED.h * 3,
+            imageRendering: "pixelated",
+          }}
+          draggable={false}
+        />
+        <div
+          className="platform-shadow"
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: "8%",
+            transform: "translateX(-50%)",
+            width: CHEST_CLOSED.w * 3.3,
+            height: 14,
+          }}
+        />
       </div>
 
-      <p style={{ fontSize: "var(--font-size-sm)", textAlign: "center" }}>
-        {descricaoSala}
-      </p>
-
-      {item && (
-        <div className="pixel-box" style={{ fontSize: "var(--font-size-sm)" }}>
-          <p style={{ color: "var(--gold)", marginBottom: 8 }}>{item.nome}</p>
-          {item.bonus_atk > 0 && <p>ATK +{item.bonus_atk}</p>}
-          {item.bonus_hp > 0 && <p>HP +{item.bonus_hp}</p>}
-          {item.bonus_esq > 0 && <p>ESQ +{Math.round(item.bonus_esq * 100)}%</p>}
+      {/* Painel inferior */}
+      <div
+        style={{
+          flex: "1 1 45%",
+          padding: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        <div className="poke-dialog" style={{ fontSize: 7, padding: "8px 10px" }}>
+          {descricaoSala || "Um baú repousa diante de você. Abrir?"}
         </div>
-      )}
 
-      <div style={{ display: "flex", gap: 12 }}>
-        <button className="pixel-btn" onClick={openChest} disabled={loading}>
-          ABRIR
-        </button>
-        <button className="pixel-btn" onClick={ignoreChest} disabled={loading}>
-          IGNORAR
-        </button>
+        {opened && item && (
+          <div className="poke-box" style={{ fontSize: 7, padding: "6px 8px" }}>
+            <p style={{ color: "#d8a000", marginBottom: 4 }}>{item.nome}</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", color: "#000" }}>
+              {item.bonus_atk > 0 && <span>ATK +{item.bonus_atk}</span>}
+              {item.bonus_hp > 0 && <span>HP +{item.bonus_hp}</span>}
+              {item.bonus_esq > 0 && <span>ESQ +{Math.round(item.bonus_esq * 100)}%</span>}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: "auto" }}>
+          {!opened ? (
+            <>
+              <button
+                className="poke-btn"
+                onClick={handleOpen}
+                disabled={loading}
+                style={{ minWidth: 100 }}
+              >
+                ABRIR
+              </button>
+              <button
+                className="poke-btn"
+                onClick={handleIgnore}
+                disabled={loading}
+                style={{ minWidth: 100 }}
+              >
+                IGNORAR
+              </button>
+            </>
+          ) : (
+            <div style={{ fontSize: 7, color: "#000" }}>
+              {loading ? "..." : ""}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

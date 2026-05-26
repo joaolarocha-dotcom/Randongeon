@@ -19,8 +19,9 @@ from jogo.entidades.loja import Loja
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 
-CHANCE_FUGA = 0.5          # 50% de chance de fugir com sucesso
-BOSS_A_CADA_ANDARES = 5    # Boss a cada X andares
+CHANCE_FUGA = 0.5                # 50% de chance de fugir com sucesso
+BOSS_A_CADA_ANDARES = 5          # Boss a cada X andares (modo "story")
+BOSS_A_CADA_ANDARES_INFINITO = 3 # Boss a cada X andares (modo "infinite")
 
 LORE = [
     "Ninguém sabe quando ela surgiu,",
@@ -80,7 +81,7 @@ class Masmorra:
         desistiu  (bool):        True se o jogador optou por desistir.
     """
 
-    def __init__(self, jogador: Jogador, gerador: GeradorSala = None) -> None:
+    def __init__(self, jogador: Jogador, gerador: GeradorSala = None, modo: str = "story") -> None:
         """
         Inicializa a Masmorra com um jogador e um gerador de salas.
 
@@ -90,11 +91,16 @@ class Masmorra:
             gerador (GeradorSala|None): Gerador de salas. Se None, um
                                          GeradorSala padrão é criado.
                                          Aceita objetos fake para testes.
+            modo    (str):              "story" (boss a cada 5 andares) ou
+                                         "infinite" (boss a cada 3 andares).
         """
+        if modo not in ("story", "infinite"):
+            raise ValueError("modo deve ser 'story' ou 'infinite'.")
         self.jogador  = jogador
         self.gerador  = gerador if gerador is not None else GeradorSala()
         self.andar    = 0
         self.desistiu = False
+        self.modo     = modo
 
     # ── Lógica pura (testável) ─────────────────────────────────────────────────
 
@@ -148,36 +154,35 @@ class Masmorra:
         """
         return random.random() < CHANCE_FUGA
 
+    def _intervalo_boss(self) -> int:
+        return BOSS_A_CADA_ANDARES_INFINITO if self.modo == "infinite" else BOSS_A_CADA_ANDARES
+
     def e_andar_de_boss(self) -> bool:
         """
         Verifica se o andar atual deve conter um boss.
 
-        Um boss aparece a cada BOSS_A_CADA_ANDARES andares (ex: 5, 10, 15...).
-        O andar 0 nunca é andar de boss.
-
-        Retorna:
-            bool: True se o andar atual é múltiplo de BOSS_A_CADA_ANDARES.
+        Um boss aparece a cada N andares, sendo N=5 no modo "story" e N=3 no
+        modo "infinite". O andar 0 nunca é andar de boss.
         """
-        return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES == 0
+        intervalo = self._intervalo_boss()
+        return self.andar > 0 and self.andar % intervalo == 0
 
     def gerar_boss(self) -> Inimigo:
         """
         Cria um boss escalado ao andar atual.
 
-        Os atributos do boss são proporcionais ao andar, garantindo
-        que bosses mais profundos sejam progressivamente mais difíceis.
-
-        Retorna:
-            Inimigo: Instância de boss com dificuldade 3.
+        Fórmula (rebalanceada): hp = 18 + fator*7, atk = 4 + fator, onde
+        fator = andar // intervalo_boss. Mantém recompensa generosa de XP/moedas.
         """
-        fator  = self.andar // BOSS_A_CADA_ANDARES
-        hp     = 20 + (fator * 10)
-        atk    = 5  + (fator * 2)
+        intervalo = self._intervalo_boss()
+        fator  = self.andar // intervalo
+        hp     = 18 + (fator * 7)
+        atk    = 4  + fator
         xp     = 50 + (fator * 25)
         moedas = 15 + fator
         nome   = f"Guardião do Andar {self.andar}"
 
-        return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp,moedas=moedas)
+        return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas)
     
     def gerar_mimico(self) -> Inimigo:
         hp     = 10

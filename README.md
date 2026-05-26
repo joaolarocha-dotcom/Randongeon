@@ -228,7 +228,7 @@ A cada turno, uma sala é gerada pelo gerador configurado. O `GeradorSimples` so
 
 ### 5.3 Inimigos e Dificuldade
 
-- **Comum (Dificuldade 1):** HP 3–8, ATK 1–3. Ex: Goblin, Rato Gigante, Zumbi.
+- **Comum (Dificuldade 1):** HP 3–8, ATK 1–3. Ex: Goblin, Rato Gigante, Nosferatu.
 - **Elite (Dificuldade 2):** HP 8–15, ATK 3–5. Aparece a partir do andar 3 com 30% de chance.
 - **Boss (Dificuldade 3):** Aparece a cada múltiplo de 5 andares, com atributos escalados.
 - **Mímico:** Inimigo especial que se disfarça de baú; aparece com 1/20 de chance em salas de inimigo.

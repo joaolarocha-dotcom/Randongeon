@@ -10,7 +10,7 @@ import random
 
 
 # Pool de nomes por dificuldade — separado da lógica para facilitar testes
-NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Zumbi"]
+NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Nosferatu"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
 
