@@ -3,20 +3,27 @@
 """
 Módulo responsável pelo sistema central da masmorra.
 
-v3 — Balanceamento de combate, mecânicas especiais e fuga por tipo de inimigo.
+v3.1 — Mecânica de miss + sistema de loot.
 
-Mudanças:
+Mudanças v3:
   - resolver_combate(): processa mecânicas especiais (Vampiro, Caçador, Banshee).
-    A absorção do Golem é processada automaticamente em Inimigo.receber_dano().
-  - tentar_fuga(inimigo=None): aceita inimigo opcional para aplicar modificador
-    de fuga específico do tipo. Limites: 5% mínimo, 90% máximo.
-  - _combate_interativo(): indicadores visuais dos tipos especiais, mensagens
-    narrativas para cada mecânica, controle de atordoamento.
-  - avancar(): mensagem diferenciada para a Horda de Goblins.
+  - tentar_fuga(inimigo=None): modificador de fuga por tipo.
+
+Mudanças v3.1:
+  - CHANCE_MISS_JOGADOR: constante de chance de erro do jogador (10%).
+  - _rolar_miss(): rola miss para jogador ou inimigo antes de aplicar dano.
+  - _rolar_loot(): rola chance de drop de item ao derrotar inimigo.
+  - POOL_LOOT: itens simples que podem ser dropados por inimigos.
+    Poções menores — não requer sala de baú nem mercador.
+
+Lote 1:
+  - NOMES_BOSS extraído para constante de módulo (testável externamente).
+  - __init__: aceita andar_max opcional para Modo Campanha.
 """
 
 import random
 import time
+from typing import Optional
 
 from jogo.entidades.jogador import Jogador
 from jogo.entidades.inimigo import Inimigo
@@ -29,6 +36,25 @@ from jogo.entidades.loja    import Loja
 
 CHANCE_FUGA          = 0.5
 BOSS_A_CADA_ANDARES  = 5
+CHANCE_MISS_JOGADOR  = 0.10   # v3.1: 10% base de errar ataque
+
+# Pool de itens simples que inimigos podem dropar ao morrer.
+# Poções menores — recompensa pequena sem depender de baús ou mercador.
+POOL_LOOT = [
+    Item("Poção Menor de Cura",    bonus_hp=3),
+    Item("Erva Medicinal",          bonus_hp=2),
+    Item("Fragmento de Cristal",   bonus_atk=1),
+    Item("Pó de Velocidade",       bonus_esq=0.03),
+    Item("Poção de Cura",          bonus_hp=5),
+]
+
+# Nomes temáticos de boss por andar (extraído para módulo no Lote 1).
+NOMES_BOSS = {
+    5:  "Arauto das Sombras",
+    10: "Senhor dos Corredores",
+    15: "Ceifador Eterno",
+    20: "Coração da Masmorra",
+}
 
 LORE = [
     "Ninguém sabe quando ela surgiu,",
@@ -110,17 +136,24 @@ class Masmorra:
       - Expor métodos de apresentação (prints) separados da lógica.
 
     Atributos:
-        jogador  (Jogador):    Personagem controlado pelo jogador.
-        gerador  (GeradorSala): Responsável por gerar salas.
-        andar    (int):        Andar atual da masmorra.
-        desistiu (bool):       True se o jogador optou por desistir.
+        jogador   (Jogador):     Personagem controlado pelo jogador.
+        gerador   (GeradorSala): Responsável por gerar salas.
+        andar     (int):         Andar atual da masmorra.
+        desistiu  (bool):        True se o jogador optou por desistir.
+        andar_max (int|None):    Andar máximo para Modo Campanha; None = infinito.
     """
 
-    def __init__(self, jogador: Jogador, gerador: GeradorSala = None) -> None:
-        self.jogador  = jogador
-        self.gerador  = gerador if gerador is not None else GeradorSala()
-        self.andar    = 0
-        self.desistiu = False
+    def __init__(
+        self,
+        jogador: Jogador,
+        gerador: GeradorSala = None,
+        andar_max: Optional[int] = None,   # Lote 1: Modo Campanha
+    ) -> None:
+        self.jogador   = jogador
+        self.gerador   = gerador if gerador is not None else GeradorSala()
+        self.andar     = 0
+        self.desistiu  = False
+        self.andar_max = andar_max   # Lote 1: None = modo infinito
 
     # ── Lógica pura (testável) ─────────────────────────────────────────────────
 
@@ -149,9 +182,11 @@ class Masmorra:
 
             # ── Fase do Jogador ──────────────────────────────────────────────
             if not jogador_atordoado:
-                inimigo.receber_dano(self.jogador.atk)
+                if not random.random() < CHANCE_MISS_JOGADOR:
+                    inimigo.receber_dano(self.jogador.atk)
+                # se miss do jogador: nenhum dano neste turno
             else:
-                jogador_atordoado = False   # consome o atordoamento
+                jogador_atordoado = False   # consome atordoamento
 
             # ── Fase do Inimigo (apenas se ainda vivo) ───────────────────────
             if inimigo.esta_vivo():
@@ -160,9 +195,13 @@ class Masmorra:
                 if inimigo.bonus_atk_por_turno > 0:
                     inimigo.atk += inimigo.bonus_atk_por_turno
 
-                dano_causado = self.jogador.receber_dano(inimigo.atk)
+                # Miss do inimigo
+                if not random.random() < inimigo.chance_miss:
+                    dano_causado = self.jogador.receber_dano(inimigo.atk)
+                else:
+                    dano_causado = 0   # inimigo errou
 
-                # Vampiro das Sombras: cura 20% do dano causado
+                # Vampiro das Sombras: cura % do dano causado
                 if inimigo.cura_percentual > 0 and dano_causado > 0:
                     cura = max(1, int(dano_causado * inimigo.cura_percentual))
                     inimigo.curar(cura)
@@ -177,6 +216,9 @@ class Masmorra:
 
         self.jogador.ganhar_xp(inimigo.xp)
         self.jogador.ganhar_moedas(inimigo.moedas)
+        loot = self._rolar_loot(inimigo)
+        if loot:
+            self.aplicar_item(loot)
         return "vitoria"
 
     def tentar_fuga(self, inimigo: Inimigo = None) -> bool:
@@ -212,18 +254,39 @@ class Masmorra:
         return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES == 0
 
     def gerar_boss(self) -> Inimigo:
-        """Cria um boss escalado ao andar atual."""
+        """
+        Cria um boss escalado ao andar atual.
+
+        Patch v3 — balanceamento revisado:
+          Fórmulas antigas eram muito lineares e suaves — boss do andar 10
+          tinha HP=40 e ATK=9, fraco demais para um jogador com itens acumulados.
+
+          Novo escalonamento (fator = andar // 5):
+            HP     = 40 + (fator * 18)   → andares  5/10/15/20: 58 / 76 / 94 / 112
+            ATK    =  8 + (fator *  3)   → andares  5/10/15/20: 11 / 14 / 17 / 20
+            XP     = 80 + (fator * 40)   → andares  5/10/15/20: 120/ 160/ 200/ 240
+            moedas = 25 + (fator *  8)   → andares  5/10/15/20: 33 / 41 / 49 / 57
+
+          Nomes temáticos por nível de boss (ver constante NOMES_BOSS).
+        """
         fator  = self.andar // BOSS_A_CADA_ANDARES
-        hp     = 20 + (fator * 10)
-        atk    = 5  + (fator * 2)
-        xp     = 50 + (fator * 25)
-        moedas = 15 + fator
-        nome   = f"Guardião do Andar {self.andar}"
+        hp     = 40 + (fator * 18)
+        atk    =  8 + (fator *  3)
+        xp     = 80 + (fator * 40)
+        moedas = 25 + (fator *  8)
+        nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")
+
         return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas)
 
     def gerar_mimico(self) -> Inimigo:
-        """Cria um Mímico com atributos fixos."""
-        return Inimigo("Mímico", hp=10, atk=3, dificuldade=2, xp=35, moedas=7)
+        """
+        Cria um Mímico com atributos fixos.
+
+        Patch v3: HP aumentado de 10→14, ATK de 3→4.
+        Mímicos devem ser uma surpresa desafiadora, não um inimigo trivial.
+        XP e moedas mantidos altos para recompensar o susto.
+        """
+        return Inimigo("Mímico", hp=14, atk=4, dificuldade=2, xp=40, moedas=10)
 
     def aplicar_item(self, item: Item) -> dict:
         """
@@ -235,6 +298,31 @@ class Masmorra:
         if item is None:
             raise ValueError("Item não pode ser None.")
         return item.usar(self.jogador)
+
+    def _rolar_loot(self, inimigo: Inimigo):
+        """
+        Rola a chance de drop de item ao derrotar um inimigo.
+
+        Chance base definida em inimigo.chance_drop:
+          - Comuns dif 1:  8%
+          - Elites dif 2: 18-25% (varia por tipo especial)
+          - Bosses dif 3: 50% (garantia de recompensa maior)
+          - Horda:        12%
+
+        Se o drop acontece, retorna um Item aleatório do POOL_LOOT.
+        Se não, retorna None — e a chamada no resolver_combate é segura.
+
+        O item NÃO é aplicado aqui. Quem chama decide se aplica
+        (resolver_combate aplica; api/main.py aplica e inclui no response).
+
+        Retorna:
+            Item | None
+        """
+        # Bosses têm chance maior independente do atributo
+        chance = 0.50 if inimigo.dificuldade == 3 else inimigo.chance_drop
+        if random.random() < chance:
+            return random.choice(POOL_LOOT)
+        return None
 
     # ── Apresentação (não testada unitariamente) ───────────────────────────────
 

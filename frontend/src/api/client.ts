@@ -1,3 +1,6 @@
+// frontend/src/api/client.ts
+// v3 — Adicionados tipo_especial em InimigoInfo e jogador_atordoado em CombatActionResponse
+
 const API_BASE = "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -29,6 +32,7 @@ export interface InimigoInfo {
   hp_max: number;
   atk: number;
   dificuldade: number;
+  tipo_especial?: string | null;   // v3: "vampiro" | "golem" | "cacador" | "horda" | "banshee" | null
 }
 
 export interface ItemInfo {
@@ -67,6 +71,7 @@ export interface CombatActionResponse {
   dano_inimigo: number;
   jogador: JogadorStatus;
   inimigo?: InimigoInfo;
+  jogador_atordoado?: boolean;     // v3: true = próximo ataque bloqueado pela Banshee
 }
 
 export interface ChestResponse {

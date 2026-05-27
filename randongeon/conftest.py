@@ -80,6 +80,8 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.bonus_atk_por_turno = 0
     inimigo.chance_atordoar     = 0.0
     inimigo.tipo_especial       = None
+    inimigo.chance_miss         = 0.10   # v3.1
+    inimigo.chance_drop         = 0.10   # v3.1
 
 
 @pytest.fixture

@@ -66,6 +66,8 @@ class Inimigo:
         bonus_atk_por_turno: int = 0,
         chance_atordoar: float = 0.0,
         tipo_especial: str = None,
+        chance_miss: float = 0.10,   # v3.1 — chance de errar ataque
+        chance_drop: float = 0.10,   # v3.1 — chance de dropar item ao morrer
     ) -> None:
         """
         Inicializa um Inimigo com atributos base e atributos especiais opcionais.
@@ -93,6 +95,10 @@ class Inimigo:
             raise ValueError("bonus_atk_por_turno não pode ser negativo.")
         if not (0.0 <= chance_atordoar <= 1.0):
             raise ValueError("chance_atordoar deve estar entre 0.0 e 1.0.")
+        if not (0.0 <= chance_miss <= 1.0):
+            raise ValueError("chance_miss deve estar entre 0.0 e 1.0.")
+        if not (0.0 <= chance_drop <= 1.0):
+            raise ValueError("chance_drop deve estar entre 0.0 e 1.0.")
 
         self.nome                = nome
         self.hp                  = hp
@@ -107,6 +113,8 @@ class Inimigo:
         self.bonus_atk_por_turno = bonus_atk_por_turno
         self.chance_atordoar     = chance_atordoar
         self.tipo_especial       = tipo_especial
+        self.chance_miss         = chance_miss   # v3.1
+        self.chance_drop         = chance_drop   # v3.1
 
     # ── Estado ────────────────────────────────────────────────────────────────
 
@@ -206,7 +214,10 @@ class Inimigo:
         atk    = random.randint(1, 2)
         xp     = random.randint(8, 18)
         moedas = random.randint(0, 4)
-        return Inimigo(nome, hp, atk, 1, xp, moedas, modificador_fuga=0.10)
+        # miss por tipo: Zumbi lento (20%), Goblin (15%), Rato (10%)
+        miss = {"Zumbi": 0.20, "Goblin": 0.15, "Rato Gigante": 0.10}.get(nome, 0.12)
+        return Inimigo(nome, hp, atk, 1, xp, moedas,
+                       modificador_fuga=0.10, chance_miss=miss, chance_drop=0.08)
 
     @staticmethod
     def _gerar_elite(andar: int) -> "Inimigo":
@@ -241,7 +252,8 @@ class Inimigo:
         atk    = random.randint(2, 4)
         xp     = random.randint(25, 45)
         moedas = random.randint(5, 10)
-        return Inimigo(nome, hp, atk, 2, xp, moedas, modificador_fuga=-0.05)
+        return Inimigo(nome, hp, atk, 2, xp, moedas,
+                       modificador_fuga=-0.05, chance_miss=0.10, chance_drop=0.18)
 
     # ── Dispatcher de especiais ───────────────────────────────────────────────
 
@@ -280,6 +292,7 @@ class Inimigo:
             modificador_fuga=-0.10,
             cura_percentual=0.20,
             tipo_especial="vampiro",
+            chance_miss=0.05, chance_drop=0.22,
         )
 
     @staticmethod
@@ -303,6 +316,7 @@ class Inimigo:
             modificador_fuga=-0.05,
             absorcao_dano=2,
             tipo_especial="golem",
+            chance_miss=0.10, chance_drop=0.20,
         )
 
     @staticmethod
@@ -326,6 +340,7 @@ class Inimigo:
             modificador_fuga=+0.05,
             bonus_atk_por_turno=1,
             tipo_especial="cacador",
+            chance_miss=0.05, chance_drop=0.20,
         )
 
     @staticmethod
@@ -347,6 +362,7 @@ class Inimigo:
             "Horda de Goblins", hp, atk, 1, xp, moedas,
             modificador_fuga=+0.20,
             tipo_especial="horda",
+            chance_miss=0.20, chance_drop=0.12,
         )
 
     @staticmethod
@@ -369,6 +385,7 @@ class Inimigo:
             modificador_fuga=-0.15,
             chance_atordoar=0.30,
             tipo_especial="banshee",
+            chance_miss=0.05, chance_drop=0.25,
         )
 
     # ── Representação ─────────────────────────────────────────────────────────

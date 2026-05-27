@@ -1,57 +1,63 @@
-# api/session.py
+"""
+api/session.py
+Gerenciamento de sessões em memória da API Randongeon.
 
+Lote 1:
+  - GameState: adicionado game_mode, loja_ativa.
+  - create_session(nome, game_mode): passa andar_max=20 para Masmorra
+    quando mode=="campaign".
+"""
+from __future__ import annotations
+
+import os
+import sys
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
-import sys
-import os
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "randongeon"),
+)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "randongeon"))
-
-from jogo.entidades.jogador import Jogador
 from jogo.entidades.inimigo import Inimigo
-from jogo.entidades.loja    import Loja
+from jogo.entidades.jogador import Jogador
 from jogo.sistemas.masmorra import Masmorra
-from jogo.sistemas.gerador  import GeradorSala
+
+_ANDAR_MAX_CAMPANHA: int = 20
 
 
 @dataclass
 class GameState:
-    """
-    Estado completo de uma sessão de jogo.
-
-    Campos:
-        masmorra          → orquestrador principal da run.
-        inimigo_ativo     → inimigo do combate em curso (None fora de combate).
-        loja_ativa        → loja do turno atual (None fora de loja).
-        sala_pendente     → dados temporários da sala (baú, mímico, hp_max de boss).
-        jogador_atordoado → True quando a Banshee atordoou o jogador.
-                            Verificado no início de cada ação de combate:
-                            se True, o ataque é cancelado e o campo é resetado.
-    """
     masmorra:          Masmorra
+    game_mode:         str               = "infinite"  # "campaign" | "infinite"
     inimigo_ativo:     Optional[Inimigo] = None
-    loja_ativa:        Optional[Loja]    = None
-    sala_pendente:     Optional[dict]    = field(default_factory=lambda: None)
-    jogador_atordoado: bool              = False    # novo v3 — mecânica da Banshee
+    loja_ativa:        Optional[Any]     = None        # instância de Loja
+    sala_pendente:     Optional[dict]    = field(default=None)
+    jogador_atordoado: bool              = False
 
 
 _sessions: dict[str, GameState] = {}
 
 
-def create_session(nome: str) -> tuple[str, GameState]:
-    session_id  = str(uuid.uuid4())
-    jogador     = Jogador(nome)
-    gerador     = GeradorSala()
-    masmorra    = Masmorra(jogador, gerador)
-    state       = GameState(masmorra=masmorra)
+def create_session(
+    nome: str,
+    game_mode: str = "infinite",
+) -> tuple[str, GameState]:
+    session_id = str(uuid.uuid4())
+    jogador    = Jogador(nome)
+    andar_max  = _ANDAR_MAX_CAMPANHA if game_mode == "campaign" else None
+    masmorra   = Masmorra(jogador, andar_max=andar_max)
+    state      = GameState(masmorra=masmorra, game_mode=game_mode)
     _sessions[session_id] = state
     return session_id, state
 
 
-def get_session(session_id: str) -> Optional[GameState]:
-    return _sessions.get(session_id)
+def get_session(session_id: str) -> GameState:
+    state = _sessions.get(session_id)
+    if state is None:
+        raise KeyError(f"Sessão '{session_id}' não encontrada")
+    return state
 
 
 def delete_session(session_id: str) -> None:
