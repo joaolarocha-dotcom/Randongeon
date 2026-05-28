@@ -10,6 +10,12 @@ Mudanças em relação à versão anterior:
     adicional de 'moedas' na geração aleatória.
   - Bloco 5 (escalonamento): verificações de moedas incluídas.
 
+Lote 1 — correções:
+  - test_mock_gera_inimigo_dificuldade_2: andar 3 → 5 (threshold v3).
+  - test_inimigo_dif2_nome_pertence_ao_pool_correto: andar 3 → 5.
+  - test_inimigo_dif2_moedas_dentro_do_range: andar 3 → 5.
+  - test_inimigos_dif2_tem_moedas_maiores_que_dif1_em_media: andar 3 → 5.
+
 Execute com:
     pytest tests/test_inimigo.py -v
     pytest tests/test_inimigo.py -v --tb=short
@@ -216,10 +222,11 @@ class TestGerar:
     @patch("jogo.entidades.inimigo.random.randint", side_effect=[12, 4, 40, 8])
     def test_mock_gera_inimigo_dificuldade_2(self, mock_randint, mock_choice, mock_random):
         """
-        Mock completo: random.random=0.1 (< 0.3) e andar >= 3 → dificuldade 2.
+        Mock completo: random.random=0.1 (< 0.3) e andar >= 5 → dificuldade 2.
+        FIX Lote 1: andar=3 → andar=5 (threshold elite mudou para andar 5 na v3).
         side_effect cobre: hp=12, atk=4, xp=40, moedas=8 (4 sorteios).
         """
-        inimigo = Inimigo.gerar(andar=3)
+        inimigo = Inimigo.gerar(andar=5)   # FIX: era andar=3
         assert inimigo.dificuldade == 2
         assert inimigo.nome        == "Orc"
         assert inimigo.hp          == 12
@@ -247,8 +254,11 @@ class TestGerar:
 
     @patch("jogo.entidades.inimigo.random.random", return_value=0.1)
     def test_inimigo_dif2_nome_pertence_ao_pool_correto(self, mock_random):
-        """Mock: dificuldade 2 → nome deve pertencer ao pool NOMES_DIFICULDADE_2."""
-        assert Inimigo.gerar(andar=3).nome in NOMES_DIFICULDADE_2
+        """
+        Mock: dificuldade 2 → nome deve pertencer ao pool NOMES_DIFICULDADE_2.
+        FIX Lote 1: andar=3 → andar=5 (threshold elite mudou para andar 5 na v3).
+        """
+        assert Inimigo.gerar(andar=5).nome in NOMES_DIFICULDADE_2   # FIX: era andar=3
 
     @patch("jogo.entidades.inimigo.random.random", return_value=0.9)
     def test_inimigo_dif1_moedas_dentro_do_range(self, mock_random):
@@ -265,9 +275,10 @@ class TestGerar:
         """
         Caminho feliz (novo v2): moedas de inimigo dificuldade 2
         devem estar no range definido (6 a 11).
+        FIX Lote 1: andar=3 → andar=5 (threshold elite mudou para andar 5 na v3).
         """
         for _ in range(20):
-            i = Inimigo.gerar(andar=3)
+            i = Inimigo.gerar(andar=5)   # FIX: era andar=3
             assert 6 <= i.moedas <= 11
 
 
@@ -301,11 +312,12 @@ class TestEscalonamentoPorAndar:
         Estatístico (novo v2): média de moedas de inimigos elite (dif=2)
         deve superar a de inimigos comuns (dif=1).
         Elite: moedas 6-11. Comum: moedas 0-5.
+        FIX Lote 1: andar=3 → andar=5 para garantir dificuldade 2 gerada.
         """
         with patch("jogo.entidades.inimigo.random.random", return_value=0.9):
             moedas_dif1 = [Inimigo.gerar(andar=1).moedas for _ in range(20)]
         with patch("jogo.entidades.inimigo.random.random", return_value=0.1):
-            moedas_dif2 = [Inimigo.gerar(andar=3).moedas for _ in range(20)]
+            moedas_dif2 = [Inimigo.gerar(andar=5).moedas for _ in range(20)]  # FIX: era andar=3
         assert (sum(moedas_dif2) / 20) > (sum(moedas_dif1) / 20)
 
 

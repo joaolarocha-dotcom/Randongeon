@@ -1,8 +1,12 @@
 # randongeon/conftest.py
-
-"""
-Configuração global do pytest para o projeto randongeon 
-"""
+#
+# v3 — Atualizado para compatibilidade com os novos atributos de Inimigo:
+#   - hp_max, modificador_fuga, cura_percentual, absorcao_dano,
+#     bonus_atk_por_turno, chance_atordoar, tipo_especial
+#
+# ATENÇÃO: o fixture inimigo_fraco usa Inimigo.__new__() para contornar a
+# validação de atk=0. Todos os novos atributos precisam ser definidos
+# manualmente para evitar AttributeError nos testes de combate.
 
 import sys
 import os
@@ -18,9 +22,7 @@ from jogo.sistemas.gerador  import GeradorSala
 from jogo.sistemas.masmorra import Masmorra
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FIXTURES GLOBAIS — Jogador
-# ══════════════════════════════════════════════════════════════════════════════
+# ── FIXTURES — Jogador ────────────────────────────────────────────────────────
 
 @pytest.fixture
 def jogador_padrao() -> Jogador:
@@ -52,7 +54,7 @@ def jogador_forte() -> Jogador:
 
 @pytest.fixture
 def jogador_com_esq() -> Jogador:
-    """Jogador com esquiva elevada (esq=0.8) para testar o sistema de dodge."""
+    """Jogador com esquiva elevada (esq=0.8)."""
     return Jogador("Esquivador", hp=20, atk=5, esq=0.8)
 
 
@@ -62,10 +64,25 @@ def jogador_com_moedas() -> Jogador:
     return Jogador("Rico", hp=20, atk=5, moedas=50)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FIXTURES GLOBAIS — Inimigo
-# CRÍTICO: moedas agora é parâmetro obrigatório em Inimigo.__init__
-# ══════════════════════════════════════════════════════════════════════════════
+# ── FIXTURES — Inimigo ────────────────────────────────────────────────────────
+
+def _set_atributos_especiais(inimigo: Inimigo) -> None:
+    """
+    Define todos os novos atributos especiais (v3) em instâncias criadas
+    via __new__ (que não passam pelo __init__ e não recebem os defaults).
+    Centraliza a atualização: se novos atributos forem adicionados,
+    basta alterar esta função.
+    """
+    inimigo.hp_max              = inimigo.hp
+    inimigo.modificador_fuga    = 0.0
+    inimigo.cura_percentual     = 0.0
+    inimigo.absorcao_dano       = 0
+    inimigo.bonus_atk_por_turno = 0
+    inimigo.chance_atordoar     = 0.0
+    inimigo.tipo_especial       = None
+    inimigo.chance_miss         = 0.10   # v3.1
+    inimigo.chance_drop         = 0.10   # v3.1
+
 
 @pytest.fixture
 def inimigo_padrao() -> Inimigo:
@@ -77,8 +94,9 @@ def inimigo_padrao() -> Inimigo:
 def inimigo_fraco() -> Inimigo:
     """
     Inimigo com hp=1 e atk=0 — morto em um golpe, não causa dano.
-    Criado via __new__ porque atk=0 não passa na validação normal.
-    INCLUI moedas=2 para compatibilidade com resolver_combate() v2.
+    Criado via __new__ porque atk=0 não passa na validação do __init__.
+    Todos os atributos especiais (v3) são definidos manualmente via
+    _set_atributos_especiais() para evitar AttributeError no combate.
     """
     i             = Inimigo.__new__(Inimigo)
     i.nome        = "Dummy"
@@ -87,6 +105,7 @@ def inimigo_fraco() -> Inimigo:
     i.dificuldade = 1
     i.xp          = 10
     i.moedas      = 2
+    _set_atributos_especiais(i)
     return i
 
 
@@ -96,9 +115,7 @@ def inimigo_forte() -> Inimigo:
     return Inimigo("Chefão Supremo", hp=999, atk=999, dificuldade=3, xp=100, moedas=50)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FIXTURES GLOBAIS — Item
-# ══════════════════════════════════════════════════════════════════════════════
+# ── FIXTURES — Item ───────────────────────────────────────────────────────────
 
 @pytest.fixture
 def item_cura() -> Item:
@@ -120,13 +137,11 @@ def item_misto() -> Item:
 
 @pytest.fixture
 def item_esquiva() -> Item:
-    """Item de esquiva com bonus_esq=0.1. Novo na v2."""
+    """Item de esquiva com bonus_esq=0.1."""
     return Item("Poção do Mestre Gato", bonus_esq=0.1)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FIXTURES GLOBAIS — Sistema
-# ══════════════════════════════════════════════════════════════════════════════
+# ── FIXTURES — Sistema ───────────────────────────────────────────────────────
 
 @pytest.fixture
 def gerador_padrao() -> GeradorSala:

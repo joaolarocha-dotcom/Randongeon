@@ -1,46 +1,77 @@
-import sys
+"""
+api/main.py
+FastAPI — 12 endpoints REST do Randongeon.
+
+Lote 1 — correções alinhadas com gameStore.ts v3.1:
+  - advance(): tipo="inimigo" (não "monstro"), tipo="item" (não "baú").
+  - lore: retorna {"linhas": [...]} (não {"lore": "..."}).
+  - shopBuy: aceita indice (int), não item_nome.
+  - ShopResponse: campo "loja" (LojaInfo), não "itens_loja".
+  - chest/open: campo "tipo" (não "resultado").
+  - quit: retorna QuitResponse {mensagem, jogador}.
+  - Mantidos: miss mechanic, loot drops, vitoria_campanha.
+
+Pylance reportMissingImports → falsos positivos (severity 4).
+Funcionam normalmente via terminal com o venv ativado.
+"""
+from __future__ import annotations
+
 import os
 import random
+import sys
 
-# Permite rodar `uvicorn api.main:app` da raiz E `uvicorn main:app` de dentro de api/.
-# Sem isso, os imports `from session import ...` falham quando rodado da raiz
-# porque a pasta api/ não está automaticamente no sys.path nesse caso.
-sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "randongeon"))
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "randongeon"),
+)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from session import GameState, create_session, get_session, delete_session, register_session
 from schemas import (
-    NewGameRequest, NewGameResponse, JogadorStatus, ItemInventario, SalaResponse,
-    InimigoInfo, ItemInfo, LojaInfo, LojaOferta, CombatActionResponse,
-    ChestResponse, ShopBuyRequest, ShopBuyResponse, LoreResponse,
-    GameOverResponse, UseItemRequest, UseItemResponse,
-    SaveStateResponse, LoadStateRequest, LoadStateResponse,
+    CampaignVictoryResponse,
+    ChestResponse,
+    CombatActionResponse,
+    InimigoInfo,
+    ItemInfo,
+    LojaInfo,
+    LojaItemInfo,
+    JogadorStatus,
+    LoreResponse,
+    NewGameRequest,
+    NewGameResponse,
+    QuitResponse,
+    SalaResponse,
+    ShopBuyRequest,
+    ShopResponse,
+    StatusResponse,
 )
-
+from session import GameState, create_session, delete_session, get_session
 from jogo.entidades.inimigo import Inimigo
-from jogo.entidades.loja import Loja
-from jogo.sistemas.masmorra import LORE
-from jogo.sistemas.persistencia import serializar_estado, desserializar_estado
+from jogo.entidades.loja    import Loja
+from jogo.sistemas.masmorra import CHANCE_MISS_JOGADOR, LORE, POOL_LOOT
 
-app = FastAPI(title="Randongeon API")
+app = FastAPI(title="Randongeon API", version="3.1-lote1")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+ANDAR_MAX_CAMPANHA: int = 20
 
-def _get_state(session_id: str) -> GameState:
-    state = get_session(session_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
-    return state
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_session(session_id: str) -> GameState:
+    try:
+        return get_session(session_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
 
 
 def _jogador_status(state: GameState) -> JogadorStatus:
@@ -48,127 +79,242 @@ def _jogador_status(state: GameState) -> JogadorStatus:
     return JogadorStatus(
         nome=j.nome,
         hp=j.hp,
-        hp_max=j.hp_max,
+        hp_max=getattr(j, "hp_max", j.hp),
         atk=j.atk,
         esq=j.esq,
         xp=j.xp,
+        nivel=getattr(j, "nivel", 1),
         moedas=j.moedas,
-        andar=state.masmorra.andar,
-        inventario=[ItemInventario(**raw) for raw in j.inventario_resumo()],
     )
 
 
-def _aplicar_vitoria(state: GameState, inimigo: Inimigo) -> None:
-    """
-    Centraliza efeitos colaterais da vitória em combate:
-      - XP + moedas do inimigo derrotado.
-      - Se for boss (dificuldade=3): cura 40% do HP_max e marca a próxima
-        sala como loja garantida.
-    """
-    jogador = state.masmorra.jogador
-    jogador.ganhar_xp(inimigo.xp)
-    jogador.ganhar_moedas(inimigo.moedas)
-    state.inimigo_ativo = None
-
-    if inimigo.dificuldade == 3:
-        cura = max(1, jogador.hp_max * 40 // 100)
-        jogador.curar(cura)
-        state.pending_shop_after_boss = True
-
-
-def _inimigo_info(inimigo: Inimigo, hp_max: int = None) -> InimigoInfo:
+def _inimigo_info(inimigo: Inimigo) -> InimigoInfo:
     return InimigoInfo(
         nome=inimigo.nome,
         hp=inimigo.hp,
-        hp_max=hp_max if hp_max else inimigo.hp,
+        hp_max=getattr(inimigo, "hp_max", inimigo.hp),
         atk=inimigo.atk,
         dificuldade=inimigo.dificuldade,
+        tipo_especial=getattr(inimigo, "tipo_especial", None),
     )
 
 
-def _loja_info(loja: Loja) -> LojaInfo:
-    ofertas = []
-    for oferta in loja.ofertas:
-        item = oferta["item"]
-        ofertas.append(LojaOferta(
-            nome=item.nome,
-            preco=oferta["preco"],
-            bonus_atk=item.bonus_atk,
-            bonus_hp=item.bonus_hp,
-            bonus_esq=item.bonus_esq,
-        ))
-    return LojaInfo(ofertas=ofertas)
+def _item_info(item) -> ItemInfo:
+    return ItemInfo(
+        nome=item.nome,
+        bonus_atk=getattr(item, "bonus_atk", 0),
+        bonus_hp=getattr(item, "bonus_hp", 0),
+        bonus_esq=getattr(item, "bonus_esq", 0.0),
+    )
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+def _loja_info(loja) -> LojaInfo:
+    """
+    Serializa Loja para LojaInfo.
+    Suporta loja.itens como lista de tuples (item, preco)
+    ou de objetos com .item / .preco.
+    """
+    result = []
+    for entrada in loja.itens:
+        if isinstance(entrada, (list, tuple)):
+            item, preco = entrada
+        else:
+            item, preco = entrada.item, entrada.preco
+        result.append(LojaItemInfo(item=_item_info(item), preco=preco))
+    return LojaInfo(itens=result)
 
+
+def _rolar_loot(inimigo: Inimigo):
+    """
+    Boss (dificuldade 3) → 50%.
+    Outros → chance_drop individual do inimigo.
+    """
+    chance = 0.50 if inimigo.dificuldade == 3 else inimigo.chance_drop
+    return random.choice(POOL_LOOT) if random.random() < chance else None
+
+
+def _processar_ataque_inimigo(
+    state: GameState,
+    inimigo: Inimigo,
+    mensagem: str,
+) -> tuple[int, bool, str]:
+    """
+    Resolve o turno do inimigo: escala ATK (Caçador), rola miss,
+    aplica dano, atordoa (Banshee).
+    Retorna (dano_inimigo, miss_inimigo, mensagem_atualizada).
+    """
+    jogador = state.masmorra.jogador
+
+    if getattr(inimigo, "bonus_atk_por_turno", 0):
+        inimigo.atk += inimigo.bonus_atk_por_turno
+
+    miss_inimigo = False
+    dano_inimigo = 0
+
+    if random.random() < getattr(inimigo, "chance_miss", 0.10):
+        miss_inimigo = True
+        mensagem += f" {inimigo.nome} errou o ataque!"
+    else:
+        dano_inimigo = jogador.receber_dano(inimigo.atk)
+        mensagem += f" {inimigo.nome} causou {dano_inimigo} de dano."
+
+        if getattr(inimigo, "cura_percentual", 0):
+            cura = max(1, int(dano_inimigo * inimigo.cura_percentual))
+            inimigo.curar(cura)
+
+        if getattr(inimigo, "chance_atordoar", 0):
+            if random.random() < inimigo.chance_atordoar:
+                state.jogador_atordoado = True
+                mensagem += f" {jogador.nome} foi atordoado!"
+
+    return dano_inimigo, miss_inimigo, mensagem
+
+
+def _checar_vitoria_campanha(
+    session_id: str,
+    state: GameState,
+    inimigo: Inimigo,
+    mensagem: str,
+    dano_jogador: int,
+    dano_inimigo: int,
+    miss_jogador: bool,
+    miss_inimigo: bool,
+    loot_drop,
+) -> CombatActionResponse | None:
+    if (
+        state.game_mode == "campaign"
+        and state.masmorra.andar >= ANDAR_MAX_CAMPANHA
+        and inimigo.dificuldade == 3
+    ):
+        resp = CombatActionResponse(
+            resultado="vitoria_campanha",
+            mensagem=(
+                f"🏆 {state.masmorra.jogador.nome} conquistou o "
+                "Coração da Masmorra! A masmorra foi vencida!"
+            ),
+            dano_jogador=dano_jogador,
+            dano_inimigo=dano_inimigo,
+            jogador=_jogador_status(state),
+            miss_jogador=miss_jogador,
+            miss_inimigo=miss_inimigo,
+            loot=_item_info(loot_drop) if loot_drop else None,
+        )
+        delete_session(session_id)
+        return resp
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. Nova partida
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/game/new", response_model=NewGameResponse)
 def new_game(req: NewGameRequest):
-    if not req.nome.strip():
-        raise HTTPException(status_code=400, detail="Nome não pode ser vazio.")
-    session_id, state = create_session(req.nome.strip(), modo=req.modo)
+    session_id, state = create_session(req.nome.strip(), req.game_mode)
     return NewGameResponse(
         session_id=session_id,
         jogador=_jogador_status(state),
-        modo=state.modo,
+        game_mode=state.game_mode,
     )
 
 
-@app.get("/game/{session_id}/status", response_model=JogadorStatus)
-def get_status(session_id: str):
-    state = _get_state(session_id)
-    return _jogador_status(state)
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. Status
+# ═══════════════════════════════════════════════════════════════════════════════
 
+@app.get("/game/{session_id}/status", response_model=StatusResponse)
+def get_status(session_id: str):
+    state = _get_session(session_id)
+    return StatusResponse(
+        session_id=session_id,
+        jogador=_jogador_status(state),
+        andar=state.masmorra.andar,
+        game_mode=state.game_mode,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. Lore
+# FIX: retorna {"linhas": [...]} — gameStore: set({ loreLinhas: res.linhas })
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/game/{session_id}/lore", response_model=LoreResponse)
 def get_lore(session_id: str):
-    _get_state(session_id)
+    _get_session(session_id)
     return LoreResponse(linhas=LORE)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. Avançar de sala
+# FIX: tipo="inimigo" (não "monstro"), tipo="item" (não "baú")
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @app.post("/game/{session_id}/advance", response_model=SalaResponse)
 def advance(session_id: str):
-    state = _get_state(session_id)
+    state    = _get_session(session_id)
     masmorra = state.masmorra
 
-    if not masmorra.jogador.esta_vivo():
-        raise HTTPException(status_code=400, detail="Jogador está morto.")
+    state.inimigo_ativo     = None
+    state.loja_ativa        = None
+    state.sala_pendente     = None
+    state.jogador_atordoado = False
 
-    masmorra.andar += 1
-
-    if masmorra.e_andar_de_boss():
+    # Campanha: andar máximo → re-spawn boss final sem incrementar
+    if state.game_mode == "campaign" and masmorra.andar >= ANDAR_MAX_CAMPANHA:
         boss = masmorra.gerar_boss()
         state.inimigo_ativo = boss
-        state.sala_pendente = {"hp_max": boss.hp}
+        state.sala_pendente = {"hp_max": boss.hp_max}
         return SalaResponse(
             tipo="boss",
-            descricao=f"⚠️ Um BOSS bloqueia o caminho! {boss.nome} apareceu!",
+            descricao="⚠️ O Coração da Masmorra bloqueia a saída! Não há escapatória!",
             andar=masmorra.andar,
             inimigo=_inimigo_info(boss),
             jogador=_jogador_status(state),
         )
 
-    # Loja garantida após boss derrotado (consome a flag).
-    if state.pending_shop_after_boss:
-        state.pending_shop_after_boss = False
-        loja = Loja()
-        state.loja_ativa = loja
-        state.inimigo_ativo = None
+    # Avanço normal
+    masmorra.andar += 1
+
+    if masmorra.e_andar_de_boss():
+        boss = masmorra.gerar_boss()
+        state.inimigo_ativo = boss
+        state.sala_pendente = {"hp_max": boss.hp_max}
         return SalaResponse(
-            tipo="loja",
-            descricao="Após a vitória, um mercador surge das sombras com ofertas raras.",
+            tipo="boss",
+            descricao=f"Um guardião emerge das sombras do andar {masmorra.andar}!",
             andar=masmorra.andar,
-            loja=_loja_info(loja),
+            inimigo=_inimigo_info(boss),
             jogador=_jogador_status(state),
         )
 
     tipo, conteudo, descricao = masmorra.gerador.gerar_sala(masmorra.andar)
 
+    if tipo == "inimigo":
+        inimigo = conteudo
+        state.inimigo_ativo = inimigo
+        state.sala_pendente = {"hp_max": inimigo.hp_max}
+        return SalaResponse(
+            tipo="inimigo",           # FIX: era "monstro"
+            descricao=descricao,
+            andar=masmorra.andar,
+            inimigo=_inimigo_info(inimigo),
+            jogador=_jogador_status(state),
+        )
+
+    if tipo == "item":
+        item = conteudo
+        state.sala_pendente = {"item": item}
+        return SalaResponse(
+            tipo="item",              # FIX: era "baú"
+            descricao=descricao,
+            andar=masmorra.andar,
+            item=_item_info(item) if item else None,
+            jogador=_jogador_status(state),
+        )
+
     if tipo == "loja":
         loja = Loja()
         state.loja_ativa = loja
-        state.inimigo_ativo = None
         return SalaResponse(
             tipo="loja",
             descricao=descricao,
@@ -177,368 +323,397 @@ def advance(session_id: str):
             jogador=_jogador_status(state),
         )
 
-    elif tipo == "item":
-        e_mimico = random.randint(1, 20) == 1
-        if e_mimico:
-            state.sala_pendente = {"tipo_real": "mimico"}
-        else:
-            state.sala_pendente = {"tipo_real": "item", "item": conteudo}
-        return SalaResponse(
-            tipo="item",
-            descricao="Você avista um baú antigo no centro da sala.",
-            andar=masmorra.andar,
-            item=ItemInfo(
-                nome=conteudo.nome,
-                bonus_atk=conteudo.bonus_atk,
-                bonus_hp=conteudo.bonus_hp,
-                bonus_esq=conteudo.bonus_esq,
-            ) if not e_mimico else None,
-            jogador=_jogador_status(state),
-        )
-
-    else:  # inimigo
-        e_mimico = random.randint(1, 20) == 1
-        if e_mimico:
-            state.sala_pendente = {"tipo_real": "mimico_disfarce"}
-            return SalaResponse(
-                tipo="item",
-                descricao="Você avista um baú antigo no centro da sala.",
-                andar=masmorra.andar,
-                jogador=_jogador_status(state),
-            )
-        else:
-            state.inimigo_ativo = conteudo
-            state.sala_pendente = {"hp_max": conteudo.hp}
-            return SalaResponse(
-                tipo="inimigo",
-                descricao=descricao,
-                andar=masmorra.andar,
-                inimigo=_inimigo_info(conteudo),
-                jogador=_jogador_status(state),
-            )
+    # fallback
+    return SalaResponse(
+        tipo=tipo,
+        descricao=descricao,
+        andar=masmorra.andar,
+        jogador=_jogador_status(state),
+    )
 
 
-# ── Combate ───────────────────────────────────────────────────────────────────
-
-
-def _get_inimigo_hp_max(state: GameState) -> int:
-    if state.sala_pendente and "hp_max" in state.sala_pendente:
-        return state.sala_pendente["hp_max"]
-    if state.inimigo_ativo:
-        return state.inimigo_ativo.hp
-    return 0
-
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. Atacar
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/game/{session_id}/combat/attack", response_model=CombatActionResponse)
 def combat_attack(session_id: str):
-    state = _get_state(session_id)
-    inimigo = state.inimigo_ativo
-    if inimigo is None:
-        raise HTTPException(status_code=400, detail="Nenhum combate ativo.")
-
+    state   = _get_session(session_id)
     jogador = state.masmorra.jogador
-    hp_max_inimigo = _get_inimigo_hp_max(state)
+    inimigo = state.inimigo_ativo
 
-    dano_no_inimigo = inimigo.receber_dano(jogador.atk)
-    dano_no_jogador = 0
-    mensagem = f"Você causou {dano_no_inimigo} de dano."
+    if inimigo is None:
+        raise HTTPException(status_code=400, detail="Sem inimigo ativo")
 
-    if inimigo.esta_vivo():
-        dano_no_jogador = jogador.receber_dano(inimigo.atk)
-        mensagem += f" {inimigo.nome} causou {dano_no_jogador} de dano em você."
+    miss_jogador = False
+    miss_inimigo = False
+    dano_jogador = 0
+    dano_inimigo = 0
+    loot_drop    = None
 
-    if not jogador.esta_vivo():
+    # Turno do jogador
+    if state.jogador_atordoado:
+        state.jogador_atordoado = False
+        mensagem = f"{jogador.nome} está atordoado e perde o turno!"
+    elif random.random() < CHANCE_MISS_JOGADOR:
+        miss_jogador = True
+        mensagem = "Você errou o ataque!"
+    else:
+        dano_jogador = inimigo.receber_dano(jogador.atk)
+        mensagem = f"Você causou {dano_jogador} de dano."
+        if getattr(inimigo, "cura_percentual", 0):
+            inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
+
+    # Inimigo morto?
+    if inimigo.hp <= 0:
+        jogador.ganhar_xp(inimigo.xp)
+        jogador.ganhar_moedas(inimigo.moedas)
+        loot_drop = _rolar_loot(inimigo)
+        if loot_drop:
+            state.masmorra.aplicar_item(loot_drop)
+        mensagem += f" {inimigo.nome} foi derrotado!"
         state.inimigo_ativo = None
-        return CombatActionResponse(
-            resultado="derrota",
-            mensagem=f"{jogador.nome} foi derrotado...",
-            dano_jogador=dano_no_jogador,
-            dano_inimigo=dano_no_inimigo,
-            jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
-        )
 
-    if not inimigo.esta_vivo():
-        _aplicar_vitoria(state, inimigo)
+        campanha = _checar_vitoria_campanha(
+            session_id, state, inimigo, mensagem,
+            dano_jogador, 0, miss_jogador, False, loot_drop,
+        )
+        if campanha:
+            return campanha
+
         return CombatActionResponse(
             resultado="vitoria",
-            mensagem=f"Você derrotou {inimigo.nome}! +{inimigo.xp} XP, +{inimigo.moedas} moedas.",
-            dano_jogador=dano_no_jogador,
-            dano_inimigo=dano_no_inimigo,
+            mensagem=mensagem,
+            dano_jogador=dano_jogador,
+            dano_inimigo=0,
             jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+            inimigo=_inimigo_info(inimigo),
+            miss_jogador=miss_jogador,
+            miss_inimigo=False,
+            loot=_item_info(loot_drop) if loot_drop else None,
+        )
+
+    # Turno do inimigo
+    dano_inimigo, miss_inimigo, mensagem = _processar_ataque_inimigo(
+        state, inimigo, mensagem
+    )
+
+    # Jogador morto?
+    if jogador.hp <= 0:
+        state.inimigo_ativo = None
+        delete_session(session_id)
+        return CombatActionResponse(
+            resultado="derrota",
+            mensagem=mensagem + " Você foi derrotado...",
+            dano_jogador=dano_jogador,
+            dano_inimigo=dano_inimigo,
+            jogador=_jogador_status(state),
+            miss_jogador=miss_jogador,
+            miss_inimigo=miss_inimigo,
         )
 
     return CombatActionResponse(
         resultado="continua",
         mensagem=mensagem,
-        dano_jogador=dano_no_jogador,
-        dano_inimigo=dano_no_inimigo,
+        dano_jogador=dano_jogador,
+        dano_inimigo=dano_inimigo,
         jogador=_jogador_status(state),
-        inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+        inimigo=_inimigo_info(inimigo),
+        jogador_atordoado=state.jogador_atordoado,
+        miss_jogador=miss_jogador,
+        miss_inimigo=miss_inimigo,
     )
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. Esquivar
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/game/{session_id}/combat/dodge", response_model=CombatActionResponse)
 def combat_dodge(session_id: str):
-    state = _get_state(session_id)
-    inimigo = state.inimigo_ativo
-    if inimigo is None:
-        raise HTTPException(status_code=400, detail="Nenhum combate ativo.")
-
+    state   = _get_session(session_id)
     jogador = state.masmorra.jogador
-    hp_max_inimigo = _get_inimigo_hp_max(state)
+    inimigo = state.inimigo_ativo
 
-    dano_no_inimigo = 0
-    dano_no_jogador = 0
+    if inimigo is None:
+        raise HTTPException(status_code=400, detail="Sem inimigo ativo")
 
-    if random.random() <= jogador.esq:
-        dano_no_inimigo = inimigo.receber_dano(jogador.atk)
-        mensagem = f"Esquiva bem-sucedida! Você causou {dano_no_inimigo} de dano sem ser atingido."
+    miss_jogador = False
+    dano_jogador = 0
+    loot_drop    = None
+
+    era_atordoado = state.jogador_atordoado
+    if era_atordoado:
+        state.jogador_atordoado = False
+        mensagem = f"{jogador.nome} está atordoado e perde o turno!"
+        esquivou = False
     else:
-        dano_no_jogador = jogador.receber_dano(inimigo.atk * 2)
-        mensagem = f"Esquiva falhou! {inimigo.nome} causou {dano_no_jogador} de dano (dobrado)."
+        esquivou = random.random() < jogador.esq
+        mensagem = ""
 
-    if not jogador.esta_vivo():
-        state.inimigo_ativo = None
+    if esquivou:
+        mensagem = f"{jogador.nome} esquivou com sucesso!"
+        if random.random() < CHANCE_MISS_JOGADOR:
+            miss_jogador = True
+            mensagem += " Mas errou o contra-ataque!"
+        else:
+            dano_jogador = inimigo.receber_dano(jogador.atk)
+            mensagem += f" Contra-atacou por {dano_jogador} de dano."
+            if getattr(inimigo, "cura_percentual", 0):
+                inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
+
+        if inimigo.hp <= 0:
+            jogador.ganhar_xp(inimigo.xp)
+            jogador.ganhar_moedas(inimigo.moedas)
+            loot_drop = _rolar_loot(inimigo)
+            if loot_drop:
+                state.masmorra.aplicar_item(loot_drop)
+            mensagem += f" {inimigo.nome} foi derrotado!"
+            state.inimigo_ativo = None
+
+            campanha = _checar_vitoria_campanha(
+                session_id, state, inimigo, mensagem,
+                dano_jogador, 0, miss_jogador, False, loot_drop,
+            )
+            if campanha:
+                return campanha
+
+            return CombatActionResponse(
+                resultado="vitoria",
+                mensagem=mensagem,
+                dano_jogador=dano_jogador,
+                dano_inimigo=0,
+                jogador=_jogador_status(state),
+                inimigo=_inimigo_info(inimigo),
+                miss_jogador=miss_jogador,
+                miss_inimigo=False,
+                loot=_item_info(loot_drop) if loot_drop else None,
+            )
+
+        # Esquivou — inimigo não ataca neste turno
         return CombatActionResponse(
-            resultado="derrota",
-            mensagem=f"{jogador.nome} foi derrotado...",
-            dano_jogador=dano_no_jogador,
-            dano_inimigo=dano_no_inimigo,
+            resultado="continua",
+            mensagem=mensagem,
+            dano_jogador=dano_jogador,
+            dano_inimigo=0,
             jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+            inimigo=_inimigo_info(inimigo),
+            miss_jogador=miss_jogador,
+            miss_inimigo=False,
         )
 
-    if not inimigo.esta_vivo():
-        _aplicar_vitoria(state, inimigo)
+    # Esquiva falhou → inimigo ataca
+    if not mensagem:
+        mensagem = "A esquiva falhou!"
+
+    dano_inimigo, miss_inimigo, mensagem = _processar_ataque_inimigo(
+        state, inimigo, mensagem
+    )
+
+    if jogador.hp <= 0:
+        delete_session(session_id)
         return CombatActionResponse(
-            resultado="vitoria",
-            mensagem=f"Você derrotou {inimigo.nome}! +{inimigo.xp} XP, +{inimigo.moedas} moedas.",
-            dano_jogador=dano_no_jogador,
-            dano_inimigo=dano_no_inimigo,
+            resultado="derrota",
+            mensagem=mensagem + " Você foi derrotado...",
+            dano_jogador=0,
+            dano_inimigo=dano_inimigo,
             jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+            miss_jogador=False,
+            miss_inimigo=miss_inimigo,
         )
 
     return CombatActionResponse(
         resultado="continua",
         mensagem=mensagem,
-        dano_jogador=dano_no_jogador,
-        dano_inimigo=dano_no_inimigo,
+        dano_jogador=0,
+        dano_inimigo=dano_inimigo,
         jogador=_jogador_status(state),
-        inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+        inimigo=_inimigo_info(inimigo),
+        jogador_atordoado=state.jogador_atordoado,
+        miss_jogador=False,
+        miss_inimigo=miss_inimigo,
     )
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. Fugir
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/game/{session_id}/combat/flee", response_model=CombatActionResponse)
 def combat_flee(session_id: str):
-    state = _get_state(session_id)
-    inimigo = state.inimigo_ativo
-    if inimigo is None:
-        raise HTTPException(status_code=400, detail="Nenhum combate ativo.")
-
+    state   = _get_session(session_id)
     jogador = state.masmorra.jogador
-    hp_max_inimigo = _get_inimigo_hp_max(state)
+    inimigo = state.inimigo_ativo
 
-    if state.masmorra.tentar_fuga():
+    if inimigo is None:
+        raise HTTPException(status_code=400, detail="Sem inimigo ativo")
+
+    if state.masmorra.tentar_fuga(inimigo):
         state.inimigo_ativo = None
         return CombatActionResponse(
             resultado="fuga",
-            mensagem="Você fugiu da batalha!",
+            mensagem=f"{jogador.nome} fugiu com sucesso!",
             dano_jogador=0,
             dano_inimigo=0,
             jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
         )
 
-    dano_no_jogador = jogador.receber_dano(inimigo.atk)
-    mensagem = f"Fuga falhou! {inimigo.nome} causou {dano_no_jogador} de dano."
+    # Fuga falhou → inimigo ataca
+    mensagem = "A fuga falhou!"
+    dano_inimigo, miss_inimigo, mensagem = _processar_ataque_inimigo(
+        state, inimigo, mensagem
+    )
 
-    if not jogador.esta_vivo():
-        state.inimigo_ativo = None
+    if jogador.hp <= 0:
+        delete_session(session_id)
         return CombatActionResponse(
             resultado="derrota",
-            mensagem=f"{jogador.nome} foi derrotado...",
-            dano_jogador=dano_no_jogador,
-            dano_inimigo=0,
+            mensagem=mensagem + " Você foi derrotado...",
+            dano_jogador=0,
+            dano_inimigo=dano_inimigo,
             jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+            miss_inimigo=miss_inimigo,
         )
 
     return CombatActionResponse(
         resultado="continua",
         mensagem=mensagem,
-        dano_jogador=dano_no_jogador,
-        dano_inimigo=0,
+        dano_jogador=0,
+        dano_inimigo=dano_inimigo,
         jogador=_jogador_status(state),
-        inimigo=_inimigo_info(inimigo, hp_max_inimigo),
+        inimigo=_inimigo_info(inimigo),
+        jogador_atordoado=state.jogador_atordoado,
+        miss_inimigo=miss_inimigo,
     )
 
 
-# ── Baú ───────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8 & 9. Baú
+# FIX: campo "tipo" (não "resultado") — gameStore: res.tipo === "mimico"
+# ═══════════════════════════════════════════════════════════════════════════════
 
+_CHANCE_MIMICO = 0.20
 
 @app.post("/game/{session_id}/chest/open", response_model=ChestResponse)
 def chest_open(session_id: str):
-    state = _get_state(session_id)
-    pendente = state.sala_pendente
+    state = _get_session(session_id)
 
-    if pendente is None:
-        raise HTTPException(status_code=400, detail="Nenhum baú pendente.")
-
-    tipo_real = pendente.get("tipo_real", "")
-
-    if tipo_real in ("mimico", "mimico_disfarce"):
+    if random.random() < _CHANCE_MIMICO:
         mimico = state.masmorra.gerar_mimico()
         state.inimigo_ativo = mimico
-        state.sala_pendente = {"hp_max": mimico.hp}
         return ChestResponse(
-            tipo="mimico",
-            mensagem="ERA UM MÍMICO DISFARÇADO!!!",
-            inimigo=_inimigo_info(mimico),
+            tipo="mimico",           # FIX: campo "tipo", não "resultado"
+            mensagem="Era uma armadilha! Um Mímico ataca!",
             jogador=_jogador_status(state),
+            inimigo=_inimigo_info(mimico),
         )
 
-    item = pendente.get("item")
-    if item is None:
-        raise HTTPException(status_code=400, detail="Nenhum item no baú.")
+    # Item do baú: preferência ao item da sala; senão, sorteia do pool
+    item_sala = (state.sala_pendente or {}).get("item")
+    item = item_sala if item_sala else random.choice(POOL_LOOT)
+    state.masmorra.aplicar_item(item)
 
-    state.masmorra.jogador.adicionar_item(item)
-    state.sala_pendente = None
     return ChestResponse(
         tipo="item",
-        mensagem=f"Você encontrou: {item.nome}! Adicionado ao inventário.",
-        item=ItemInfo(
-            nome=item.nome,
-            bonus_atk=item.bonus_atk,
-            bonus_hp=item.bonus_hp,
-            bonus_esq=item.bonus_esq,
-        ),
+        mensagem=f"Você encontrou {item.nome}!",
         jogador=_jogador_status(state),
+        item=_item_info(item),
     )
 
 
 @app.post("/game/{session_id}/chest/ignore", response_model=ChestResponse)
 def chest_ignore(session_id: str):
-    state = _get_state(session_id)
-    state.sala_pendente = None
-    state.inimigo_ativo = None
+    state = _get_session(session_id)
     return ChestResponse(
-        tipo="item",
-        mensagem="Você ignorou o baú.",
+        tipo="ignorado",
+        mensagem="Você ignorou o baú e seguiu em frente.",
         jogador=_jogador_status(state),
     )
 
 
-# ── Loja ──────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10 & 11. Loja
+# FIX: shopBuy por índice; ShopResponse.loja = LojaInfo
+# ═══════════════════════════════════════════════════════════════════════════════
 
-
-@app.post("/game/{session_id}/shop/buy", response_model=ShopBuyResponse)
+@app.post("/game/{session_id}/shop/buy", response_model=ShopResponse)
 def shop_buy(session_id: str, req: ShopBuyRequest):
-    state = _get_state(session_id)
-    loja = state.loja_ativa
+    state = _get_session(session_id)
+    loja  = state.loja_ativa
+
     if loja is None:
-        raise HTTPException(status_code=400, detail="Nenhuma loja ativa.")
+        raise HTTPException(status_code=400, detail="Nenhuma loja ativa")
 
-    resultado = loja.comprar(req.indice, state.masmorra.jogador)
+    jogador = state.masmorra.jogador
 
-    loja_info = _loja_info(loja) if loja.ofertas else None
-    if not loja.ofertas:
-        state.loja_ativa = None
+    try:
+        entrada = loja.itens[req.indice]
+    except IndexError:
+        return ShopResponse(
+            resultado="indice_invalido",
+            mensagem=f"Índice {req.indice} não existe na loja.",
+            jogador=_jogador_status(state),
+            loja=_loja_info(loja),
+        )
 
-    return ShopBuyResponse(
-        sucesso=resultado["sucesso"],
-        mensagem=resultado["mensagem"],
+    if isinstance(entrada, (list, tuple)):
+        item, preco = entrada
+    else:
+        item, preco = entrada.item, entrada.preco
+
+    if jogador.moedas < preco:
+        return ShopResponse(
+            resultado="sem_moedas",
+            mensagem=(
+                f"Moedas insuficientes. "
+                f"Precisa de {preco}, você tem {jogador.moedas}."
+            ),
+            jogador=_jogador_status(state),
+            loja=_loja_info(loja),
+        )
+
+    jogador.moedas -= preco
+    state.masmorra.aplicar_item(item)
+
+    # Remove o item comprado da loja
+    loja.itens.pop(req.indice)
+    loja_atualizada = _loja_info(loja) if loja.itens else None
+
+    return ShopResponse(
+        resultado="compra_efetuada",
+        mensagem=f"Você comprou {item.nome} por {preco} moedas!",
         jogador=_jogador_status(state),
-        loja=loja_info,
+        loja=loja_atualizada,          # None quando loja fica vazia → gameStore vai para menu
     )
 
 
-@app.post("/game/{session_id}/shop/leave", response_model=ShopBuyResponse)
+@app.post("/game/{session_id}/shop/leave", response_model=ShopResponse)
 def shop_leave(session_id: str):
-    state = _get_state(session_id)
+    state = _get_session(session_id)
     state.loja_ativa = None
-    return ShopBuyResponse(
-        sucesso=True,
-        mensagem="O mercador recolhe as coisas e acena um adeus.",
+    return ShopResponse(
+        resultado="saiu",
+        mensagem="Você saiu da loja.",
         jogador=_jogador_status(state),
         loja=None,
     )
 
 
-# ── Quit ──────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. Desistir
+# FIX: retorna QuitResponse {mensagem, jogador} — gameStore: res.mensagem + res.jogador
+# ═══════════════════════════════════════════════════════════════════════════════
 
-
-@app.post("/game/{session_id}/quit", response_model=GameOverResponse)
+@app.post("/game/{session_id}/quit", response_model=QuitResponse)
 def quit_game(session_id: str):
-    state = _get_state(session_id)
-    state.masmorra.desistiu = True
-    response = GameOverResponse(
-        mensagem=f"{state.masmorra.jogador.nome} desistiu no andar {state.masmorra.andar}.",
-        jogador=_jogador_status(state),
-    )
+    state = _get_session(session_id)
+    jogador_final = _jogador_status(state)
     delete_session(session_id)
-    return response
-
-
-# ── Inventário ────────────────────────────────────────────────────────────────
-
-
-@app.post("/game/{session_id}/inventory/use", response_model=UseItemResponse)
-def inventory_use(session_id: str, req: UseItemRequest):
-    state = _get_state(session_id)
-    jogador = state.masmorra.jogador
-
-    if req.indice < 0 or req.indice >= len(jogador.inventario):
-        return UseItemResponse(
-            sucesso=False,
-            mensagem="Índice de inventário inválido.",
-            efeito={},
-            jogador=_jogador_status(state),
-        )
-
-    item = jogador.inventario[req.indice]
-    efeito = jogador.usar_item(req.indice)
-
-    partes = []
-    if "atk" in efeito:
-        partes.append(f"ATK +{efeito['atk']}")
-    if "hp" in efeito:
-        partes.append(f"HP +{efeito['hp']}")
-    if "esq" in efeito:
-        partes.append(f"ESQ +{int(round(efeito['esq'] * 100))}%")
-    detalhe = ", ".join(partes) if partes else "sem efeito"
-
-    return UseItemResponse(
-        sucesso=True,
-        mensagem=f"Você usou {item.nome} ({detalhe}).",
-        efeito=efeito,
-        jogador=_jogador_status(state),
-    )
-
-
-# ── Save / Load ───────────────────────────────────────────────────────────────
-
-
-@app.get("/game/{session_id}/save", response_model=SaveStateResponse)
-def save_state(session_id: str):
-    state = _get_state(session_id)
-    data = serializar_estado(state.masmorra.jogador, state.masmorra, state.modo)
-    return SaveStateResponse(**data)
-
-
-@app.post("/game/load", response_model=LoadStateResponse)
-def load_state(payload: LoadStateRequest):
-    try:
-        jogador, masmorra, modo = desserializar_estado(payload.model_dump())
-    except (KeyError, ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=f"Save inválido: {e}")
-
-    state = GameState(masmorra=masmorra, modo=modo)
-    session_id = register_session(state)
-    return LoadStateResponse(
-        session_id=session_id,
-        jogador=_jogador_status(state),
-        modo=modo,
+    return QuitResponse(
+        mensagem=(
+            f"{jogador_final.nome} desistiu no andar "
+            f"{state.masmorra.andar}. "
+            f"XP obtido: {jogador_final.xp}."
+        ),
+        jogador=jogador_final,
     )

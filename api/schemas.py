@@ -1,141 +1,142 @@
-from pydantic import BaseModel
-from typing import Optional, Literal
+"""
+api/schemas.py
+Modelos Pydantic para request/response da API Randongeon.
 
+Lote 1 — correções alinhadas com gameStore.ts v3.1:
+  - SalaResponse.tipo usa "inimigo" (não "monstro") e "item" (não "baú").
+  - LojaInfo / LojaItemInfo: estrutura aninhada que gameStore espera.
+  - ChestResponse.tipo: usa "mimico"|"item"|"ignorado" (não "resultado").
+  - ShopBuyRequest: por índice (não por nome).
+  - ShopResponse.loja: LojaInfo (não itens_loja list).
+  - QuitResponse: retorna mensagem + jogador.
+  - game_mode em NewGameRequest/NewGameResponse.
+  - CampaignVictoryResponse novo.
+"""
+from __future__ import annotations
+
+from typing import List, Optional
+from pydantic import BaseModel
+
+
+# ─── Entidades base ───────────────────────────────────────────────────────────
+
+class JogadorStatus(BaseModel):
+    nome:   str
+    hp:     int
+    hp_max: int
+    atk:    int
+    esq:    float
+    xp:     int
+    nivel:  int
+    moedas: int
+
+
+class InimigoInfo(BaseModel):
+    nome:          str
+    hp:            int
+    hp_max:        int
+    atk:           int
+    dificuldade:   int
+    tipo_especial: Optional[str] = None
+
+
+class ItemInfo(BaseModel):
+    nome:      str
+    bonus_atk: int   = 0
+    bonus_hp:  int   = 0
+    bonus_esq: float = 0.0
+
+
+class LojaItemInfo(BaseModel):
+    item:  ItemInfo
+    preco: int
+
+
+class LojaInfo(BaseModel):
+    """Estrutura da loja esperada pelo gameStore (res.loja.itens[i])."""
+    itens: List[LojaItemInfo]
+
+
+# ─── Endpoints ────────────────────────────────────────────────────────────────
 
 class NewGameRequest(BaseModel):
-    nome: str
-    modo: Literal["story", "infinite"] = "story"
+    nome:      str
+    game_mode: str = "infinite"          # "campaign" | "infinite"
 
 
 class NewGameResponse(BaseModel):
     session_id: str
-    jogador: "JogadorStatus"
-    modo: Literal["story", "infinite"] = "story"
-
-
-class ItemInventario(BaseModel):
-    nome: str
-    bonus_atk: int
-    bonus_hp: int
-    bonus_esq: float
-
-
-class JogadorStatus(BaseModel):
-    nome: str
-    hp: int
-    hp_max: int
-    atk: int
-    esq: float
-    xp: int
-    moedas: int
-    andar: int
-    inventario: list[ItemInventario] = []
-
-
-class SalaResponse(BaseModel):
-    tipo: str  # "inimigo", "item", "loja", "boss", "mimico"
-    descricao: str
-    andar: int
-    inimigo: Optional["InimigoInfo"] = None
-    item: Optional["ItemInfo"] = None
-    loja: Optional["LojaInfo"] = None
-    jogador: JogadorStatus
-
-
-class InimigoInfo(BaseModel):
-    nome: str
-    hp: int
-    hp_max: int
-    atk: int
-    dificuldade: int
-
-
-class ItemInfo(BaseModel):
-    nome: str
-    bonus_atk: int
-    bonus_hp: int
-    bonus_esq: float
-
-
-class LojaOferta(BaseModel):
-    nome: str
-    preco: int
-    bonus_atk: int
-    bonus_hp: int
-    bonus_esq: float
-
-
-class LojaInfo(BaseModel):
-    ofertas: list[LojaOferta]
-
-
-class CombatActionResponse(BaseModel):
-    resultado: str  # "continua", "vitoria", "derrota", "fuga"
-    mensagem: str
-    dano_jogador: int
-    dano_inimigo: int
-    jogador: JogadorStatus
-    inimigo: Optional[InimigoInfo] = None
-
-
-class ChestResponse(BaseModel):
-    tipo: str  # "item", "mimico"
-    mensagem: str
-    item: Optional[ItemInfo] = None
-    inimigo: Optional[InimigoInfo] = None
-    jogador: JogadorStatus
-
-
-class ShopBuyRequest(BaseModel):
-    indice: int
-
-
-class ShopBuyResponse(BaseModel):
-    sucesso: bool
-    mensagem: str
-    jogador: JogadorStatus
-    loja: Optional[LojaInfo] = None
+    jogador:    JogadorStatus
+    game_mode:  str = "infinite"
 
 
 class LoreResponse(BaseModel):
-    linhas: list[str]
+    linhas: List[str]                    # gameStore: res.linhas
 
 
-class GameOverResponse(BaseModel):
+class StatusResponse(BaseModel):
+    session_id: str
+    jogador:    JogadorStatus
+    andar:      int
+    game_mode:  str = "infinite"
+
+
+class SalaResponse(BaseModel):
+    # FIX: "inimigo" (não "monstro"), "item" (não "baú")
+    tipo:      str                       # "inimigo"|"boss"|"item"|"loja"
+    descricao: str
+    andar:     int
+    jogador:   JogadorStatus
+    inimigo:   Optional[InimigoInfo] = None   # presente para tipo="inimigo"|"boss"
+    item:      Optional[ItemInfo]    = None   # presente para tipo="item"
+    loja:      Optional[LojaInfo]    = None   # presente para tipo="loja"
+
+
+class CombatActionResponse(BaseModel):
+    # resultado: "continua"|"vitoria"|"derrota"|"fuga"|"vitoria_campanha"
+    resultado:         str
+    mensagem:          str
+    dano_jogador:      int  = 0
+    dano_inimigo:      int  = 0
+    jogador:           JogadorStatus
+    inimigo:           Optional[InimigoInfo] = None
+    jogador_atordoado: bool = False
+    miss_jogador:      bool = False
+    miss_inimigo:      bool = False
+    loot:              Optional[ItemInfo]    = None
+
+
+class ChestResponse(BaseModel):
+    # FIX: campo "tipo" (não "resultado") — gameStore usa res.tipo === "mimico"
+    tipo:     str                        # "mimico"|"item"|"ignorado"
     mensagem: str
-    jogador: JogadorStatus
+    jogador:  JogadorStatus
+    item:     Optional[ItemInfo]    = None
+    inimigo:  Optional[InimigoInfo] = None
 
 
-class UseItemRequest(BaseModel):
+class ShopBuyRequest(BaseModel):
+    # FIX: por índice (não nome) — gameStore: api.shopBuy(sessionId, indice)
     indice: int
 
 
-class UseItemResponse(BaseModel):
-    sucesso: bool
+class ShopResponse(BaseModel):
+    resultado: str                       # "compra_efetuada"|"sem_moedas"|"indice_invalido"|"saiu"
+    mensagem:  str
+    jogador:   JogadorStatus
+    loja:      Optional[LojaInfo] = None  # FIX: LojaInfo (não itens_loja list)
+
+
+class QuitResponse(BaseModel):
+    # FIX: gameStore espera res.mensagem + res.jogador
     mensagem: str
-    efeito: dict = {}
-    jogador: JogadorStatus
+    jogador:  JogadorStatus
 
 
-class SaveStateResponse(BaseModel):
-    version: int
-    savedAt: str
-    playerName: str
-    andar: int
-    modo: Literal["story", "infinite"]
-    jogador: dict
-
-
-class LoadStateRequest(BaseModel):
-    version: int
-    savedAt: Optional[str] = None
-    playerName: str
-    andar: int
-    modo: Literal["story", "infinite"] = "story"
-    jogador: dict
-
-
-class LoadStateResponse(BaseModel):
-    session_id: str
-    jogador: JogadorStatus
-    modo: Literal["story", "infinite"]
+class CampaignVictoryResponse(BaseModel):
+    """Retornado dentro de CombatActionResponse com resultado='vitoria_campanha'."""
+    mensagem:      str
+    jogador:       JogadorStatus
+    andar_final:   int
+    xp_total:      int
+    moedas_totais: int
