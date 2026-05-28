@@ -1,13 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGameStore } from "../store/gameStore";
+import { LOGO_SPRITE, FALLBACK_SPRITE_PATH } from "../assets/spriteMap";
+import { audio } from "../components/audio/AudioEngine";
 
 export function TitleScreen() {
   const [nome, setNome] = useState("");
-  const { startGame, loading, error } = useGameStore();
+  const [logoSrc, setLogoSrc] = useState(LOGO_SPRITE.src);
+  const { startGame, loading, error, pendingModo, goToMainMenu } = useGameStore();
+
+  // Tenta tocar o BGM do título no primeiro mount; o browser pode bloquear
+  // até o primeiro clique. O onClick do submit garante o playback.
+  useEffect(() => {
+    audio.playMusic("bgm_title");
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (nome.trim()) {
+      audio.playSfx("sfx_menu_select");
+      audio.playMusic("bgm_title");
       startGame(nome.trim());
     }
   };
@@ -21,27 +32,34 @@ export function TitleScreen() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 24,
+        gap: 16,
         padding: 24,
+        background: "linear-gradient(180deg, var(--poke-bg) 0%, #b0e0f8 100%)",
       }}
     >
-      <h1
-        style={{
-          fontSize: "var(--font-size-lg)",
-          color: "var(--border-color)",
-          textAlign: "center",
-          textShadow: "3px 3px 0px #000",
+      <img
+        src={logoSrc}
+        alt="RANDONGEON"
+        onError={() => {
+          if (logoSrc !== FALLBACK_SPRITE_PATH) setLogoSrc(FALLBACK_SPRITE_PATH);
         }}
-      >
-        RANDONGEON
-      </h1>
+        style={{
+          width: 240,
+          maxWidth: "80%",
+          imageRendering: "pixelated",
+        }}
+        draggable={false}
+      />
 
-      <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-dim)" }}>
-        A Masmorra Sem Fim
+      <p style={{ fontSize: "var(--font-size-sm)", color: "#000", textShadow: "1px 1px 0 #fff" }}>
+        {pendingModo === "infinite" ? "Modo Infinito" : "A Masmorra Sem Fim"}
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
-        <label style={{ fontSize: "var(--font-size-sm)" }}>Nome do Herói:</label>
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}
+      >
+        <label style={{ fontSize: "var(--font-size-sm)", color: "#000" }}>Nome do Herói:</label>
         <input
           type="text"
           value={nome}
@@ -51,20 +69,36 @@ export function TitleScreen() {
             fontFamily: "'Press Start 2P', monospace",
             fontSize: "var(--font-size-sm)",
             padding: "8px 12px",
-            backgroundColor: "var(--bg-panel)",
-            color: "var(--text-color)",
-            border: "3px solid var(--border-color)",
+            background: "#fff",
+            color: "#000",
+            border: "3px solid #000",
+            borderRadius: 4,
             outline: "none",
             textAlign: "center",
             width: 200,
           }}
         />
-        <button className="pixel-btn" type="submit" disabled={loading || !nome.trim()}>
-          {loading ? "..." : "INICIAR"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="poke-btn"
+            type="button"
+            onClick={() => {
+              audio.playSfx("sfx_menu_cancel");
+              goToMainMenu();
+            }}
+            disabled={loading}
+          >
+            VOLTAR
+          </button>
+          <button className="poke-btn" type="submit" disabled={loading || !nome.trim()}>
+            {loading ? "..." : "INICIAR"}
+          </button>
+        </div>
       </form>
 
-      {error && <p style={{ fontSize: "var(--font-size-sm)", color: "var(--hp-red)" }}>{error}</p>}
+      {error && (
+        <p style={{ fontSize: "var(--font-size-sm)", color: "var(--hp-red)" }}>{error}</p>
+      )}
     </div>
   );
 }

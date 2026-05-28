@@ -149,10 +149,11 @@ class TestComprarCaminhoFeliz:
         assert "mensagem" in resultado
         assert isinstance(resultado["mensagem"], str)
 
-    def test_compra_aplica_efeito_do_item_no_jogador(self, jogador_rico):
+    def test_compra_adiciona_item_ao_inventario(self, jogador_rico):
         """
-        Caminho feliz: o item comprado deve ter seu efeito aplicado no jogador.
-        Controla as ofertas via mock para garantir qual item é comprado.
+        Caminho feliz (v3): item comprado deve ser adicionado ao inventário do
+        jogador (não mais aplicado diretamente). O efeito só é aplicado quando
+        o jogador usa o item via combatUseItem.
         """
         item_atk = Item("Poção de Força", bonus_atk=2)
         oferta_fixa = [{"item": item_atk, "preco": 5}]
@@ -162,7 +163,10 @@ class TestComprarCaminhoFeliz:
 
         atk_antes = jogador_rico.atk
         loja_controlada.comprar(0, jogador_rico)
-        assert jogador_rico.atk == atk_antes + 2
+        # ATK NÃO muda — o item está no inventário.
+        assert jogador_rico.atk == atk_antes
+        assert len(jogador_rico.inventario) == 1
+        assert jogador_rico.inventario[0].nome == "Poção de Força"
 
     def test_pode_comprar_segundo_item(self, loja, jogador_rico):
         """Caminho feliz: deve ser possível comprar o segundo item (índice 1)."""
@@ -247,8 +251,11 @@ class TestComprarFalha:
 class TestLojaIntegracaoJogador:
     """Testa o efeito completo de compras no estado do jogador."""
 
-    def test_comprar_item_cura_aumenta_hp(self, jogador_rico):
-        """Integração: comprar Elixir Vital deve aumentar o hp do jogador."""
+    def test_comprar_item_cura_vai_para_inventario(self, jogador_rico):
+        """
+        Integração (v3): Elixir Vital comprado vai para o inventário; o HP só
+        é restaurado quando o jogador usa o item.
+        """
         item_cura_fixo = Item("Elixir Vital", bonus_hp=8)
         oferta_fixa    = [{"item": item_cura_fixo, "preco": 10},
                           {"item": Item("Outro", bonus_atk=1), "preco": 5}]
@@ -257,10 +264,15 @@ class TestLojaIntegracaoJogador:
 
         jogador_rico.hp = 10
         loja_ctrl.comprar(0, jogador_rico)
-        assert jogador_rico.hp == 18
+        # HP não muda na compra; item está no inventário.
+        assert jogador_rico.hp == 10
+        assert any(i.nome == "Elixir Vital" for i in jogador_rico.inventario)
 
-    def test_comprar_item_ataque_aumenta_atk(self, jogador_rico):
-        """Integração: comprar item de ataque deve aumentar o atk do jogador."""
+    def test_comprar_item_ataque_vai_para_inventario(self, jogador_rico):
+        """
+        Integração (v3): item de ataque comprado vai para inventário.
+        ATK só aumenta quando o jogador o usa.
+        """
         item_atk_fixo = Item("Grande Poção de Força", bonus_atk=2)
         oferta_fixa   = [{"item": item_atk_fixo, "preco": 15},
                          {"item": Item("Outro", bonus_hp=1), "preco": 5}]
@@ -269,11 +281,12 @@ class TestLojaIntegracaoJogador:
 
         atk_antes = jogador_rico.atk
         loja_ctrl.comprar(0, jogador_rico)
-        assert jogador_rico.atk == atk_antes + 2
+        assert jogador_rico.atk == atk_antes
+        assert any(i.nome == "Grande Poção de Força" for i in jogador_rico.inventario)
 
-    def test_comprar_item_esquiva_aumenta_esq(self, jogador_rico):
+    def test_comprar_item_esquiva_vai_para_inventario(self, jogador_rico):
         """
-        Integração (novo v2): comprar item de esquiva deve aumentar a esq.
+        Integração (v3): item de esquiva comprado vai para inventário.
         """
         item_esq_fixo = Item("Elixir do Mestre Mosca", bonus_esq=0.1)
         oferta_fixa   = [{"item": item_esq_fixo, "preco": 20},
@@ -283,11 +296,13 @@ class TestLojaIntegracaoJogador:
 
         esq_antes = jogador_rico.esq
         loja_ctrl.comprar(0, jogador_rico)
-        assert round(jogador_rico.esq, 2) == round(esq_antes + 0.1, 2)
+        assert jogador_rico.esq == esq_antes
+        assert any(i.nome == "Elixir do Mestre Mosca" for i in jogador_rico.inventario)
 
-    def test_compras_multiplas_acumulam_efeitos(self, jogador_rico):
+    def test_compras_multiplas_acumulam_no_inventario(self, jogador_rico):
         """
-        Integração: comprar dois itens em sequência deve aplicar ambos os efeitos.
+        Integração (v3): duas compras em sequência adicionam ambos os itens
+        no inventário, sem alterar stats até o uso.
         """
         item1 = Item("Poção Força 1", bonus_atk=2)
         item2 = Item("Poção Força 2", bonus_atk=3)
@@ -299,4 +314,6 @@ class TestLojaIntegracaoJogador:
         atk_antes = jogador_rico.atk
         loja_ctrl.comprar(0, jogador_rico)   # compra item1
         loja_ctrl.comprar(0, jogador_rico)   # compra item2 (agora no índice 0)
-        assert jogador_rico.atk == atk_antes + 5
+        assert jogador_rico.atk == atk_antes
+        nomes = [i.nome for i in jogador_rico.inventario]
+        assert nomes == ["Poção Força 1", "Poção Força 2"]

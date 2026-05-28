@@ -130,7 +130,7 @@ class TestGeradorSalaRetorno:
 
     def test_descricao_de_item_pertence_ao_catalogo(self, gerador_padrao):
         """Caminho feliz: quando tipo='item', descricao deve estar em DESCRICOES_SALA."""
-        with patch("jogo.sistemas.gerador.random.randint", return_value=2):
+        with patch("jogo.sistemas.gerador.random.randint", return_value=4):
             _, _, descricao = gerador_padrao.gerar_sala(andar=1)
         assert descricao in DESCRICOES_SALA
 
@@ -182,21 +182,21 @@ class TestGeradorSalaMockItem:
     MUDANÇA v2: randint=2 agora força item (antes era randint=1).
     """
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=2)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=4)
     def test_mock_randint_2_gera_item(self, mock_randint, gerador_padrao):
-        """Mock: randint=2 → deve gerar item."""
+        """Mock: randint=4 → deve gerar item (faixa item é sorte 4-5)."""
         tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
         assert tipo == "item"
         assert isinstance(conteudo, Item)
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=2)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=4)
     def test_mock_item_pertence_ao_catalogo(self, mock_randint, gerador_padrao):
         """Mock: item gerado deve pertencer ao CATALOGO_ITENS."""
         _, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
         nomes_catalogo = [i.nome for i in CATALOGO_ITENS]
         assert conteudo.nome in nomes_catalogo
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=2)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=4)
     def test_mock_item_conteudo_nao_e_none(self, mock_randint, gerador_padrao):
         """Mock: conteudo de item não deve ser None."""
         _, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
@@ -213,27 +213,27 @@ class TestGeradorSalaMockInimigo:
     MUDANÇA v2: qualquer randint >= 3 força inimigo.
     """
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=3)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=6)
     def test_mock_randint_3_gera_inimigo(self, mock_randint, gerador_padrao):
-        """Mock: randint=3 → deve gerar inimigo."""
+        """Mock: randint=6 → deve gerar inimigo (faixa 6-20)."""
+        tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
+        assert tipo == "inimigo"
+        assert isinstance(conteudo, Inimigo)
+
+    @patch("jogo.sistemas.gerador.random.randint", return_value=20)
+    def test_mock_randint_10_gera_inimigo(self, mock_randint, gerador_padrao):
+        """Mock: randint=20 (máximo) → deve gerar inimigo."""
         tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
         assert tipo == "inimigo"
         assert isinstance(conteudo, Inimigo)
 
     @patch("jogo.sistemas.gerador.random.randint", return_value=10)
-    def test_mock_randint_10_gera_inimigo(self, mock_randint, gerador_padrao):
-        """Mock: randint=10 (máximo) → deve gerar inimigo."""
-        tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
-        assert tipo == "inimigo"
-        assert isinstance(conteudo, Inimigo)
-
-    @patch("jogo.sistemas.gerador.random.randint", return_value=5)
     def test_mock_inimigo_tem_hp_positivo(self, mock_randint, gerador_padrao):
         """Mock: inimigo gerado deve ter hp > 0."""
         _, inimigo, _ = gerador_padrao.gerar_sala(andar=1)
         assert inimigo.hp > 0
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=5)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=10)
     def test_mock_inimigo_tem_moedas_nao_negativas(self, mock_randint, gerador_padrao):
         """Mock (novo v2): inimigo gerado deve ter moedas >= 0."""
         _, inimigo, _ = gerador_padrao.gerar_sala(andar=1)

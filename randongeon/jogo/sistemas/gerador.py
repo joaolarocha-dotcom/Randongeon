@@ -75,16 +75,16 @@ class GeradorSala:
 
         descricao = random.choice(DESCRICOES_SALA)
         
-        # Sorteio (1 a 10)
-        sorte = random.randint(1, 10)
+        # Sorteio (1 a 20)
+        sorte = random.randint(1, 20)
 
-        if sorte == 1: # 10% chance de Loja
-            return self.gerar_loja() 
-        
-        elif sorte == 2: # 10% chance de Item
+        if sorte <= 3:  # 15% chance de Loja
+            return self.gerar_loja()
+
+        elif sorte <= 5:  # 10% chance de Item (sorte 4 ou 5)
             return self.gerar_item(descricao)
-        
-        else: # 80% chance de Inimigo
+
+        else:  # 75% chance de Inimigo
             return self.gerar_inimigo(andar, descricao)
 
     def gerar_loja(self) -> tuple:

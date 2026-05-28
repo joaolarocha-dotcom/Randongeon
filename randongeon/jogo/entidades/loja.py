@@ -41,10 +41,13 @@ class Loja:
             return {"sucesso": False, "mensagem": "Moedas insuficientes."}
 
         jogador.moedas -= escolha["preco"]
-        escolha["item"].usar(jogador)
+        jogador.adicionar_item(escolha["item"])
         self.ofertas.pop(indice)
 
-        return {"sucesso": True, "mensagem": f"Comprou {escolha['item'].nome}!"}
+        return {
+            "sucesso": True,
+            "mensagem": f"Comprou {escolha['item'].nome}! Adicionado ao inventário.",
+        }
 
     # ── Apresentação (não testada unitariamente) ──────────────────────────────
 

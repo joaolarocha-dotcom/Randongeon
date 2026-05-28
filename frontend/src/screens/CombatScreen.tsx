@@ -1,193 +1,226 @@
-// frontend/src/screens/CombatScreen.tsx  — v3.1
-
+import { useEffect, useMemo, useState } from "react";
 import { useGameStore } from "../store/gameStore";
-import type { CombatLog } from "../store/gameStore";
-import { HPBar } from "../components/HPBar";
-import { DialogBox } from "../components/DialogBox";
+import { BattleStage } from "../components/battle/BattleStage";
+import { EnemySprite } from "../components/battle/EnemySprite";
+import { PlayerSprite } from "../components/battle/PlayerSprite";
+import { EnemyStatusBox } from "../components/battle/EnemyStatusBox";
+import { PlayerStatusBox } from "../components/battle/PlayerStatusBox";
+import { BattleDialog } from "../components/battle/BattleDialog";
+import { BattleMenu } from "../components/battle/BattleMenu";
+import { getArenaBg } from "../assets/bgMap";
+import { useAnimatedHP } from "../hooks/useAnimatedHP";
 
-// ── Config visual por tipo especial ──────────────────────────────────────────
-
-const ESPECIAL: Record<string, { emoji: string; label: string; cor: string }> = {
-  vampiro: { emoji: "🧛", label: "Regen 20%",    cor: "#c0392b" },
-  golem:   { emoji: "🗿", label: "Armadura +2",   cor: "#7f8c8d" },
-  cacador: { emoji: "🏹", label: "+1 ATK/turno",  cor: "#d35400" },
-  horda:   { emoji: "👺", label: "Horda",          cor: "#27ae60" },
-  banshee: { emoji: "👻", label: "Atordoa 30%",   cor: "#8e44ad" },
-};
-
-function BadgeEspecial({ tipo }: { tipo: string }) {
-  const cfg = ESPECIAL[tipo];
-  if (!cfg) return null;
-  return (
-    <span style={{
-      fontSize:   "var(--font-size-sm)",
-      padding:    "1px 5px",
-      border:     `2px solid ${cfg.cor}`,
-      color:      cfg.cor,
-      marginLeft: 6,
-    }}>
-      {cfg.emoji} {cfg.label}
-    </span>
-  );
-}
-
-// ── Linha de log ──────────────────────────────────────────────────────────────
-
-function LogLine({ entry }: { entry: CombatLog }) {
-  const cores: Record<CombatLog["tipo"], string> = {
-    vitoria: "var(--hp-green)",
-    derrota: "var(--hp-red)",
-    fuga:    "var(--hp-yellow)",
-    loot:    "var(--gold)",
-    miss:    "var(--text-dim)",
-    info:    "var(--text-dim)",
-    dano:    "var(--text-color)",
-  };
-  return (
-    <p style={{ color: cores[entry.tipo], marginBottom: 3, lineHeight: 1.6 }}>
-      {entry.mensagem}
-    </p>
-  );
-}
-
-// ── Componente principal ──────────────────────────────────────────────────────
-
+/**
+ * Tela de combate em estilo Pokemon Gen 1.
+ *
+ * Layout:
+ *   ┌─────────────────────────────────────┐
+ *   │ [ENEMY STATUS]        [enemy sprite]│  60% arena
+ *   │ [player sprite]      [PLAYER STATUS]│
+ *   ├─────────────────────────────────────┤
+ *   │  [BattleDialog OR BattleMenu]       │  40% UI
+ *   └─────────────────────────────────────┘
+ */
 export function CombatScreen() {
-  const {
-    jogador, inimigo, combatLog,
-    combatAttack, combatDodge, combatFlee,
-    loading, jogadorAtordoado, ultimoLoot,
-  } = useGameStore();
+  const jogador = useGameStore((s) => s.jogador);
+  const inimigo = useGameStore((s) => s.inimigo);
+  const animPhase = useGameStore((s) => s.animPhase);
+  const currentDialog = useGameStore((s) => s.currentDialog);
+  const dialogQueue = useGameStore((s) => s.dialogQueue);
+  const combatAttack = useGameStore((s) => s.combatAttack);
+  const combatDodge = useGameStore((s) => s.combatDodge);
+  const combatFlee = useGameStore((s) => s.combatFlee);
+  const combatUseItem = useGameStore((s) => s.combatUseItem);
+  const loading = useGameStore((s) => s.loading);
+  const setAnimPhase = useGameStore((s) => s.setAnimPhase);
+  const enqueueDialog = useGameStore((s) => s.enqueueDialog);
+  const [showInventory, setShowInventory] = useState(false);
+
+  // HPs animados
+  const animatedPlayerHP = useAnimatedHP(jogador?.hp ?? 0, { duration: 700, playTickSound: true });
+  const animatedEnemyHP = useAnimatedHP(inimigo?.hp ?? 0, { duration: 700, playTickSound: true });
+
+  // Estado local de animação dos sprites
+  const [enemyAnim, setEnemyAnim] = useState<string>("slide-in-right");
+  const [playerAnim, setPlayerAnim] = useState<string>("slide-in-left");
+
+  // Limpar slide-in após 600ms
+  useEffect(() => {
+    const t1 = setTimeout(() => setEnemyAnim(""), 700);
+    const t2 = setTimeout(() => setPlayerAnim(""), 700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+
+  // Reage a mudanças de animPhase para animar sprites.
+  // Aplicar classes de animação como efeito colateral síncrono ao mudar a fase
+  // é intencional aqui — animação dura ~700ms e o cleanup limpa.
+  useEffect(() => {
+    if (animPhase === "player_action") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlayerAnim("attack-bounce");
+      const t = setTimeout(() => setEnemyAnim("flash-white shake"), 180);
+      const t2 = setTimeout(() => {
+        setPlayerAnim("");
+        setEnemyAnim("");
+      }, 700);
+      return () => {
+        clearTimeout(t);
+        clearTimeout(t2);
+      };
+    }
+    if (animPhase === "enemy_action") {
+      setEnemyAnim("attack-bounce-rev");
+      const t = setTimeout(() => setPlayerAnim("flash-white shake"), 180);
+      const t2 = setTimeout(() => {
+        setEnemyAnim("");
+        setPlayerAnim("");
+      }, 700);
+      return () => {
+        clearTimeout(t);
+        clearTimeout(t2);
+      };
+    }
+    if (animPhase === "victory") {
+      setEnemyAnim("faint-down");
+    }
+    if (animPhase === "defeat") {
+      setPlayerAnim("faint-down");
+    }
+    if (animPhase === "flee") {
+      setPlayerAnim("flee-out-left");
+    }
+  }, [animPhase]);
+
+  // Disparar o início do combate: enfileira mensagens do intro
+  useEffect(() => {
+    if (animPhase === "intro" && !currentDialog && dialogQueue.length > 0) {
+      // O store já enfileirou — força o início chamando nextDialog via enqueue de nada
+      // (alternativa: chamar advance da fila diretamente)
+      // Aqui não fazemos nada: nextDialog é chamado pela BattleDialog quando termina cada texto
+    }
+  }, [animPhase, currentDialog, dialogQueue.length]);
+
+  const bgImage = useMemo(() => {
+    if (!jogador) return getArenaBg(1);
+    return getArenaBg(jogador.andar, inimigo?.dificuldade === 3 ? "boss" : undefined);
+    // jogador é referenciado só por .andar, que já está nas deps; evita re-cálculo a cada update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jogador?.andar, inimigo?.dificuldade]);
 
   if (!jogador || !inimigo) return null;
 
-  const lastLog      = combatLog[combatLog.length - 1];
-  const isCombatOver = !!lastLog && ["vitoria", "derrota", "fuga"].includes(lastLog.tipo);
-  const tipo         = inimigo.tipo_especial ?? null;
-  const cfgEspecial  = tipo ? ESPECIAL[tipo] : null;
-
-  const spriteEmoji =
-    tipo === "vampiro" ? "🧛" :
-    tipo === "golem"   ? "🗿" :
-    tipo === "cacador" ? "🏹" :
-    tipo === "horda"   ? "👺" :
-    tipo === "banshee" ? "👻" :
-    inimigo.dificuldade === 3 ? "💀" :
-    inimigo.dificuldade === 2 ? "☠️" : "👾";
-
-  const spriteBg = cfgEspecial
-    ? cfgEspecial.cor + "33"
-    : inimigo.dificuldade === 3 ? "#c0392b33"
-    : inimigo.dificuldade === 2 ? "#e67e2233" : "#2ecc7133";
+  // Decidir se mostra BattleMenu ou BattleDialog
+  const hasDialog = !!currentDialog || dialogQueue.length > 0;
+  const showMenu = animPhase === "idle" && !hasDialog && !loading;
 
   return (
-    <div style={{ width:"100%", height:"100%", display:"flex",
-                  flexDirection:"column", padding:12, gap:8 }}>
-
-      {/* ── Área do inimigo ─────────────────────────────────────────────────── */}
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-
-        {/* Nome + badge */}
-        <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap",
-                      justifyContent:"center", gap:4 }}>
-          <span style={{ fontSize:"var(--font-size-sm)",
-                         color: inimigo.dificuldade === 3 ? "var(--hp-red)"
-                               : inimigo.dificuldade === 2 ? "var(--hp-yellow)"
-                               : "var(--hp-green)" }}>
-            {inimigo.nome}
-          </span>
-          {tipo && <BadgeEspecial tipo={tipo} />}
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--poke-bg)",
+      }}
+    >
+      <BattleStage bgImage={bgImage}>
+        {/* Status do inimigo no topo-esquerdo */}
+        <div style={{ position: "absolute", top: 8, left: 8 }}>
+          <EnemyStatusBox inimigo={inimigo} displayedHP={animatedEnemyHP} />
         </div>
 
-        {/* HP bar */}
-        <HPBar current={inimigo.hp} max={inimigo.hp_max} />
+        {/* Sprite do inimigo no topo-direito — escala menor para criar perspectiva */}
+        <EnemySprite inimigo={inimigo} animClass={enemyAnim} scale={2.5} />
 
-        {/* Sprite */}
-        <div style={{
-          width:64, height:64, backgroundColor:spriteBg,
-          border:`2px solid ${cfgEspecial?.cor ?? "var(--border-color)"}`,
-          display:"flex", alignItems:"center", justifyContent:"center",
-          fontSize:"28px",
-        }}>
-          {spriteEmoji}
+        {/* Sprite do jogador no meio-esquerdo — escala maior para parecer "à frente" */}
+        <PlayerSprite animClass={playerAnim} scale={4} />
+
+        {/* Status do jogador no meio-direito */}
+        <div style={{ position: "absolute", bottom: 8, right: 8 }}>
+          <PlayerStatusBox jogador={jogador} displayedHP={animatedPlayerHP} />
         </div>
+      </BattleStage>
+
+      {/* Metade inferior: UI */}
+      <div
+        style={{
+          flex: "1 1 32%",
+          padding: 8,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          background: "transparent",
+        }}
+      >
+        {showMenu ? (
+          showInventory ? (
+            <BattleMenu
+              prompt="USAR ITEM"
+              items={[
+                ...jogador.inventario.map((it, idx) => ({
+                  label: `${it.nome.toUpperCase()}`,
+                  onClick: async () => {
+                    setShowInventory(false);
+                    await combatUseItem(idx);
+                  },
+                  disabled: loading,
+                })),
+                {
+                  label: "VOLTAR",
+                  onClick: () => setShowInventory(false),
+                  disabled: loading,
+                },
+              ]}
+            />
+          ) : (
+            <BattleMenu
+              prompt={`O que ${jogador.nome.toUpperCase()} vai fazer?`}
+              items={[
+                {
+                  label: "LUTAR",
+                  onClick: combatAttack,
+                  disabled: loading,
+                },
+                {
+                  label: "ITEM",
+                  onClick: () => {
+                    if (jogador.inventario.length === 0) {
+                      enqueueDialog("Inventário vazio.");
+                      return;
+                    }
+                    setShowInventory(true);
+                  },
+                  disabled: loading,
+                },
+                {
+                  label: "ESQUIVAR",
+                  onClick: combatDodge,
+                  disabled: loading,
+                },
+                {
+                  label: "FUGIR",
+                  onClick: combatFlee,
+                  disabled: loading,
+                },
+              ]}
+            />
+          )
+        ) : (
+          <BattleDialog
+            interactive
+            onQueueEmpty={() => {
+              // Libera o menu de ações quando todos os diálogos foram consumidos
+              // (apenas para fases intermediárias; victory/defeat/flee são tratados via setTimeout no store)
+              if (animPhase === "intro" || animPhase === "enemy_action" || animPhase === "player_action") {
+                setAnimPhase("idle");
+              }
+            }}
+          />
+        )}
       </div>
-
-      {/* ── HP do jogador ───────────────────────────────────────────────────── */}
-      <div className="pixel-box" style={{ padding:8 }}>
-        <HPBar current={jogador.hp} max={jogador.hp_max} label={jogador.nome} />
-        <div style={{ display:"flex", gap:12, fontSize:"var(--font-size-sm)",
-                      marginTop:4, color:"var(--text-dim)" }}>
-          <span>ATK {jogador.atk}</span>
-          <span>ESQ {Math.round(jogador.esq * 100)}%</span>
-          <span style={{ color:"var(--gold)" }}>$ {jogador.moedas}</span>
-        </div>
-      </div>
-
-      {/* ── Aviso de atordoamento ───────────────────────────────────────────── */}
-      {jogadorAtordoado && !isCombatOver && (
-        <div style={{
-          textAlign:"center", fontSize:"var(--font-size-sm)",
-          color:"#8e44ad", border:"2px solid #8e44ad", padding:"3px 8px",
-          animation:"flash 0.8s steps(1) infinite",
-        }}>
-          💀 ATORDOADO — próximo ataque bloqueado
-        </div>
-      )}
-
-      {/* ── Banner de loot ──────────────────────────────────────────────────── */}
-      {ultimoLoot && isCombatOver && (
-        <div style={{
-          textAlign:"center", fontSize:"var(--font-size-sm)",
-          color:"var(--gold)", border:"2px solid var(--gold)",
-          padding:"3px 8px",
-        }}>
-          ✨ Drop: {ultimoLoot.nome}
-          {ultimoLoot.bonus_hp  > 0 && ` · HP +${ultimoLoot.bonus_hp}`}
-          {ultimoLoot.bonus_atk > 0 && ` · ATK +${ultimoLoot.bonus_atk}`}
-          {ultimoLoot.bonus_esq > 0 && ` · ESQ +${Math.round(ultimoLoot.bonus_esq*100)}%`}
-        </div>
-      )}
-
-      {/* ── Log de combate ──────────────────────────────────────────────────── */}
-      <div style={{ flex:1, overflow:"auto", fontSize:"var(--font-size-sm)", padding:"2px 0" }}>
-        {combatLog.map((entry, i) => (
-          <LogLine key={i} entry={entry} />
-        ))}
-      </div>
-
-      {/* ── Ações ───────────────────────────────────────────────────────────── */}
-      {!isCombatOver && (
-        <DialogBox style={{ position:"relative", bottom:0, left:0, right:0 }}>
-          <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
-            <button
-              className="pixel-btn"
-              onClick={combatAttack}
-              disabled={loading}
-              style={{ opacity: jogadorAtordoado ? 0.55 : 1 }}
-              title={jogadorAtordoado ? "Atordoado — perderá este turno" : "Atacar"}
-            >
-              {jogadorAtordoado ? "💀 ATACAR" : "ATACAR"}
-            </button>
-            <button className="pixel-btn" onClick={combatDodge} disabled={loading}>
-              ESQUIVAR
-            </button>
-            <button className="pixel-btn" onClick={combatFlee} disabled={loading}>
-              FUGIR
-            </button>
-          </div>
-        </DialogBox>
-      )}
-
-      {/* ── Resultado final ─────────────────────────────────────────────────── */}
-      {isCombatOver && (
-        <div style={{ textAlign:"center", fontSize:"var(--font-size-sm)",
-                      color: lastLog.tipo === "vitoria" ? "var(--hp-green)"
-                           : lastLog.tipo === "derrota" ? "var(--hp-red)"
-                           : "var(--hp-yellow)" }}>
-          {lastLog.mensagem}
-        </div>
-      )}
     </div>
   );
 }
