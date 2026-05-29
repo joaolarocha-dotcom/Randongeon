@@ -1,31 +1,10 @@
-# randongeon/jogo/entidades/inimigo.py
-
-"""
-Módulo responsável pela entidade Inimigo.
-Define a classe Inimigo com atributos, comportamentos de combate e
-um método estático de geração aleatória com dificuldade escalável.
-"""
-
 import random
+from typing import Optional
 
-
-# Pool de nomes por dificuldade — separado da lógica para facilitar testes
 NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Nosferatu"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
-
 class Inimigo:
-    """
-    Representa um inimigo encontrado nas salas da masmorra.
-
-    Atributos:
-        nome        (str): Nome do inimigo.
-        hp          (int): Pontos de vida atuais.
-        atk         (int): Poder de ataque.
-        dificuldade (int): Nível de dificuldade (1 = comum, 2 = elite, 3 = boss).
-        xp          (int): Experiência concedida ao jogador ao ser derrotado.
-    """
-
     def __init__(
         self,
         nome: str,
@@ -33,119 +12,189 @@ class Inimigo:
         atk: int,
         dificuldade: int,
         xp: int,
-        moedas: int
+        moedas: int,
+        modificador_fuga: float = 0.0,
+        cura_percentual: float = 0.0,
+        absorcao_dano: int = 0,
+        bonus_atk_por_turno: int = 0,
+        chance_atordoar: float = 0.0,
+        tipo_especial: Optional[str] = None,
+        chance_miss: float = 0.10,
+        chance_drop: float = 0.10
     ) -> None:
-        """
-        Inicializa um Inimigo com os atributos fornecidos.
-
-        Parâmetros:
-            nome        (str): Nome do inimigo. Não pode ser vazio.
-            hp          (int): Pontos de vida. Deve ser > 0.
-            atk         (int): Poder de ataque. Deve ser > 0.
-            dificuldade (int): Nível de dificuldade. Deve ser >= 1.
-            xp          (int): XP concedido. Deve ser >= 0.
-
-        Levanta:
-            ValueError: Se qualquer atributo violar as restrições acima.
-        """
-        if not nome or not isinstance(nome, str):
-            raise ValueError("Nome do inimigo deve ser uma string não vazia.")
+        if not nome or not isinstance(nome, str) or not nome.strip():
+            raise ValueError()
         if hp <= 0:
-            raise ValueError("HP do inimigo deve ser maior que zero.")
+            raise ValueError()
         if atk <= 0:
-            raise ValueError("ATK do inimigo deve ser maior que zero.")
+            raise ValueError()
         if dificuldade < 1:
-            raise ValueError("Dificuldade deve ser >= 1.")
+            raise ValueError()
         if xp < 0:
-            raise ValueError("XP concedido não pode ser negativo.")
+            raise ValueError()
         if moedas < 0:
-            raise ValueError("moedas concedidas não podem ser negativas.")
+            raise ValueError()
+        if not (0.0 <= cura_percentual <= 1.0):
+            raise ValueError()
+        if absorcao_dano < 0:
+            raise ValueError()
+        if bonus_atk_por_turno < 0:
+            raise ValueError()
+        if not (0.0 <= chance_atordoar <= 1.0):
+            raise ValueError()
 
-        self.nome        = nome
-        self.hp          = hp
-        self.atk         = atk
+        self.nome = nome
+        self.hp = hp
+        self.hp_max = hp
+        self.atk = atk
         self.dificuldade = dificuldade
-        self.xp          = xp
-        self.moedas      = moedas
-
-    # ── Estado ────────────────────────────────────────────────────────────────
+        self.xp = xp
+        self.moedas = moedas
+        self.modificador_fuga = modificador_fuga
+        self.cura_percentual = cura_percentual
+        self.absorcao_dano = absorcao_dano
+        self.bonus_atk_por_turno = bonus_atk_por_turno
+        self.chance_atordoar = chance_atordoar
+        self.tipo_especial = tipo_especial
+        self.chance_miss = chance_miss
+        self.chance_drop = chance_drop
 
     def esta_vivo(self) -> bool:
-        """
-        Verifica se o inimigo ainda está vivo.
-
-        Retorna:
-            bool: True se hp > 0, False caso contrário.
-        """
         return self.hp > 0
 
     def receber_dano(self, dano: int) -> int:
-        """
-        Aplica dano ao inimigo. O HP nunca fica negativo.
-
-        Parâmetros:
-            dano (int): Valor de dano a aplicar. Deve ser >= 0.
-
-        Retorna:
-            int: Dano efetivamente sofrido.
-
-        Levanta:
-            ValueError: Se dano for negativo.
-        """
         if dano < 0:
-            raise ValueError("Dano não pode ser negativo.")
-
-        dano_efetivo = min(dano, self.hp)
+            raise ValueError()
+        dano_apos_absorcao = max(0, dano - self.absorcao_dano)
+        dano_efetivo = min(dano_apos_absorcao, self.hp)
         self.hp -= dano_efetivo
         return dano_efetivo
 
-    # ── Geração ───────────────────────────────────────────────────────────────
+    def curar(self, quantidade: int) -> int:
+        if quantidade < 0:
+            raise ValueError()
+        hp_antes = self.hp
+        self.hp = min(self.hp_max, self.hp + quantidade)
+        return self.hp - hp_antes
 
     @staticmethod
     def gerar(andar: int = 1) -> "Inimigo":
-        """
-        Gera um inimigo aleatório com dificuldade baseada no andar atual.
-
-        A dificuldade 2 (elite) tem 30% de chance de aparecer a partir
-        do andar 3. Abaixo disso, apenas dificuldade 1 é gerada.
-
-        Parâmetros:
-            andar (int): Andar atual da masmorra. Usado para escalar dificuldade.
-                         Deve ser >= 1.
-
-        Retorna:
-            Inimigo: Nova instância com atributos gerados aleatoriamente.
-
-        Levanta:
-            ValueError: Se andar for menor que 1.
-        """
         if andar < 1:
-            raise ValueError("O andar deve ser >= 1.")
+            raise ValueError()
 
-        pode_ser_elite = andar >= 3 and random.random() < 0.3
+        if random.random() < 0.10:
+            return HordaDeGoblins()
 
-        if pode_ser_elite:
-            dificuldade = 2
-            nome        = random.choice(NOMES_DIFICULDADE_2)
-            hp          = random.randint(8, 15)
-            atk         = random.randint(3, 5)
-            xp          = random.randint(25, 50)
-            moedas      = random.randint(6,11)
-        else:
-            dificuldade = 1
-            nome        = random.choice(NOMES_DIFICULDADE_1)
-            hp          = random.randint(3, 8)
-            atk         = random.randint(1, 3)
-            xp          = random.randint(10, 20)
-            moedas      = random.randint(0,5)
+        if andar >= 5 and random.random() < 0.25:
+            pool_especiais = []
+            if andar >= 8:
+                pool_especiais.append(GolemDePedra)
+            if andar >= 10:
+                pool_especiais.append(CacadorSombrio)
+            if andar >= 15:
+                pool_especiais.append(VampiroDasSombras)
+            if andar >= 17:
+                pool_especiais.append(Banshee)
 
-        return Inimigo(nome, hp, atk, dificuldade, xp, moedas)
+            if pool_especiais and random.random() < 0.40:
+                classe_escolhida = random.choice(pool_especiais)
+                return classe_escolhida()
 
-    # ── Representação ─────────────────────────────────────────────────────────
+            nome = random.choice(NOMES_DIFICULDADE_2)
+            hp = random.randint(8, 15)
+            atk = random.randint(3, 5)
+            xp = random.randint(25, 50)
+            moedas = random.randint(5, 10)
+            return Inimigo(nome, hp, atk, 2, xp, moedas)
+
+        nome = random.choice(NOMES_DIFICULDADE_1)
+        hp = random.randint(3, 8)
+        atk = random.randint(1, 3)
+        xp = random.randint(10, 20)
+        moedas = random.randint(0, 4)
+        return Inimigo(nome, hp, atk, 1, xp, moedas)
 
     def __repr__(self) -> str:
-        """Retorna representação legível do inimigo para debug."""
         return (
-            f"Inimigo(nome={self.nome!r}, hp={self.hp}, "
+            f"Inimigo(nome={self.nome!r}, hp={self.hp}/{self.hp_max}, "
             f"atk={self.atk}, dificuldade={self.dificuldade}, xp={self.xp})"
+        )
+
+class VampiroDasSombras(Inimigo):
+    def __init__(self) -> None:
+        super().__init__(
+            nome="Vampiro das Sombras",
+            hp=random.randint(12, 18),
+            atk=random.randint(4, 6),
+            dificuldade=2,
+            xp=45,
+            moedas=random.randint(10, 15),
+            modificador_fuga=-0.10,
+            cura_percentual=0.20,
+            tipo_especial="vampiro",
+            chance_miss=0.05,
+            chance_drop=0.22
+        )
+
+class GolemDePedra(Inimigo):
+    def __init__(self) -> None:
+        super().__init__(
+            nome="Golem de Pedra",
+            hp=random.randint(15, 22),
+            atk=random.randint(3, 5),
+            dificuldade=2,
+            xp=50,
+            moedas=random.randint(10, 15),
+            modificador_fuga=0.40,
+            absorcao_dano=2,
+            tipo_especial="golem",
+            chance_miss=0.10,
+            chance_drop=0.20
+        )
+
+class CacadorSombrio(Inimigo):
+    def __init__(self) -> None:
+        super().__init__(
+            nome="Caçador Sombrio",
+            hp=random.randint(6, 10),
+            atk=random.randint(3, 5),
+            dificuldade=2,
+            xp=40,
+            moedas=random.randint(8, 12),
+            modificador_fuga=0.05,
+            bonus_atk_por_turno=1,
+            tipo_especial="cacador",
+            chance_miss=0.05,
+            chance_drop=0.20
+        )
+
+class HordaDeGoblins(Inimigo):
+    def __init__(self) -> None:
+        super().__init__(
+            nome="Horda de Goblins",
+            hp=random.randint(9, 12),
+            atk=random.randint(1, 2),
+            dificuldade=1,
+            xp=20,
+            moedas=random.randint(5, 10),
+            modificador_fuga=0.20,
+            tipo_especial="horda",
+            chance_miss=0.20,
+            chance_drop=0.12
+        )
+
+class Banshee(Inimigo):
+    def __init__(self) -> None:
+        super().__init__(
+            nome="Banshee",
+            hp=random.randint(10, 15),
+            atk=random.randint(3, 6),
+            dificuldade=2,
+            xp=55,
+            moedas=random.randint(10, 20),
+            modificador_fuga=-0.15,
+            chance_atordoar=0.30,
+            tipo_especial="banshee",
+            chance_miss=0.05,
+            chance_drop=0.25
         )

@@ -18,6 +18,13 @@ function errorMessage(e: unknown): string {
   return "Erro desconhecido";
 }
 
+function normalizeJogador(jogador: JogadorStatus): JogadorStatus {
+  return {
+    ...jogador,
+    nivel: jogador.nivel ?? Math.max(1, Math.floor(jogador.xp / 50) + 1),
+  };
+}
+
 /**
  * Registry de setTimeouts em vôo. Evita race condition entre setTimeouts de fim de combate
  * e ações subsequentes do jogador (ex: AVANÇAR enquanto victory ainda não disparou).
@@ -187,11 +194,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const modo = get().pendingModo;
       const res = await api.newGame(nome, modo);
+      const jogador = normalizeJogador(res.jogador);
       set({
         sessionId: res.session_id,
         modo: res.modo,
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador,
+        displayedPlayerHP: jogador.hp,
         screen: "lore",
         loading: false,
       });
@@ -205,11 +213,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const res = await api.loadGame(save);
+      const jogador = normalizeJogador(res.jogador);
       set({
         sessionId: res.session_id,
         modo: res.modo,
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador,
+        displayedPlayerHP: jogador.hp,
         screen: "menu",
         loading: false,
       });
@@ -249,9 +258,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     try {
       const res = await api.advance(sessionId);
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador: jogadorAtualizado,
+        displayedPlayerHP: jogadorAtualizado.hp,
         descricaoSala: res.descricao,
         floorTransitionAndar: null,
       });
@@ -260,7 +270,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const inimigo = res.inimigo!;
         const intro = [
           `Um ${inimigo.nome} selvagem apareceu!`,
-          `Vai, ${res.jogador.nome}!`,
+          `Vai, ${jogadorAtualizado.nome}!`,
         ];
         set({
           inimigo,
@@ -271,7 +281,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           // Inicia com o primeiro item e enfileira o resto
           currentDialog: intro[0],
           dialogQueue: intro.slice(1),
-          lastXpSnapshot: res.jogador.xp,
+          lastXpSnapshot: jogadorAtualizado.xp,
         });
         audio.playMusic(getArenaMusic(res.andar, res.tipo));
       } else if (res.tipo === "item") {
@@ -335,8 +345,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await api.inventoryUse(sessionId, indice);
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
+        jogador: jogadorAtualizado,
         loading: false,
       });
       get().enqueueDialog(res.mensagem);
@@ -352,7 +363,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await api.chestOpen(sessionId);
-      set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, loading: false });
+      const jogadorAtualizado = normalizeJogador(res.jogador);
+      set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, loading: false });
       if (res.tipo === "mimico") {
         const inimigo = res.inimigo!;
         const intro = [res.mensagem, `O ${inimigo.nome} ataca!`];
@@ -364,10 +376,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           animPhase: "intro",
           currentDialog: intro[0],
           dialogQueue: intro.slice(1),
-          lastXpSnapshot: res.jogador.xp,
+          lastXpSnapshot: jogadorAtualizado.xp,
         });
         // Mímico em andar de boss usa BGM de boss; senão, BGM normal
-        audio.playMusic(getArenaMusic(res.jogador.andar));
+        audio.playMusic(getArenaMusic(jogadorAtualizado.andar));
       } else {
         audio.playSfx("sfx_item_get");
         set({
@@ -387,7 +399,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sessionId) return;
     audio.playSfx("sfx_menu_cancel");
     const res = await api.chestIgnore(sessionId);
-    set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, screen: "menu" });
+    const jogadorAtualizado = normalizeJogador(res.jogador);
+    set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, screen: "menu" });
     audio.playMusic("bgm_dungeon");
   },
 
@@ -403,9 +416,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       } else {
         audio.playSfx("sfx_menu_cancel");
       }
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador: jogadorAtualizado,
+        displayedPlayerHP: jogadorAtualizado.hp,
         loja: res.loja || null,
         loading: false,
       });
@@ -423,7 +437,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sessionId) return;
     audio.playSfx("sfx_menu_cancel");
     const res = await api.shopLeave(sessionId);
-    set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, loja: null, screen: "menu" });
+    const jogadorAtualizado = normalizeJogador(res.jogador);
+    set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, loja: null, screen: "menu" });
     audio.playMusic("bgm_dungeon");
   },
 
@@ -433,7 +448,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     cancelAllTimeouts();
     try {
       const res = await api.quit(sessionId);
-      set({ gameOverMsg: res.mensagem, jogador: res.jogador, screen: "game_over" });
+      const jogadorAtualizado = normalizeJogador(res.jogador);
+      set({ gameOverMsg: res.mensagem, jogador: jogadorAtualizado, screen: "game_over" });
       audio.playJingle("bgm_game_over");
     } catch (e) {
       set({ error: errorMessage(e) });
@@ -572,10 +588,11 @@ function handleCombatResult(
       : "dano";
 
   const newLog: CombatLog[] = [...log, { mensagem: res.mensagem, tipo }];
+  const jogadorAtualizado = normalizeJogador(res.jogador);
 
   // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente)
   set({
-    jogador: res.jogador,
+    jogador: jogadorAtualizado,
     inimigo: res.inimigo ?? null,
     combatLog: newLog,
     loading: false,
@@ -597,8 +614,8 @@ function handleCombatResult(
 
   // Resolução final
   if (res.resultado === "vitoria") {
-    const xpGanho = res.jogador.xp - (get().lastXpSnapshot ?? 0);
-    if (xpGanho > 0) mensagens.push(`${res.jogador.nome} ganhou ${xpGanho} de XP!`);
+    const xpGanho = jogadorAtualizado.xp - (get().lastXpSnapshot ?? 0);
+    if (xpGanho > 0) mensagens.push(`${jogadorAtualizado.nome} ganhou ${xpGanho} de XP!`);
     set({ animPhase: "victory" });
     appendDialog(set, get, mensagens);
     audio.playSfx("sfx_enemy_defeat");
@@ -611,11 +628,11 @@ function handleCombatResult(
     }, 4500);
   } else if (res.resultado === "derrota") {
     set({ animPhase: "defeat" });
-    appendDialog(set, get, [...mensagens, `${res.jogador.nome} foi derrotado...`]);
+    appendDialog(set, get, [...mensagens, `${jogadorAtualizado.nome} foi derrotado...`]);
     scheduleTimeout(() => {
       set({
         screen: "game_over",
-        gameOverMsg: `${res.jogador.nome} foi derrotado no andar ${res.jogador.andar}.`,
+        gameOverMsg: `${jogadorAtualizado.nome} foi derrotado no andar ${jogadorAtualizado.andar}.`,
         animPhase: "idle",
         currentDialog: null,
         dialogQueue: [],

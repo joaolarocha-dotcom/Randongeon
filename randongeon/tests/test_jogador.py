@@ -1,19 +1,5 @@
-"""
-Suíte de testes unitários para jogo/entidades/jogador.py
-
-Mudanças em relação à versão anterior:
-  - Testes de criação atualizados: 'esq' e 'moedas' verificados.
-  - Bloco 7 (novo): testa aumenta_esq().
-  - Bloco 8 (novo): testa ganhar_moedas().
-  - Validação de esq negativa adicionada ao Bloco 1.
-
-Execute com:
-    pytest tests/test_jogador.py -v
-"""
-
 import pytest
 from jogo.entidades.jogador import Jogador
-
 
 class TestCriacaoJogador:
     def test_atributos_iniciais_corretos(self, jogador_padrao):
@@ -68,7 +54,6 @@ class TestCriacaoJogador:
         with pytest.raises(ValueError):
             Jogador("Herói", hp=20, atk=5, esq=-0.1)
 
-
 class TestEstaVivo:
     def test_vivo_quando_hp_maior_que_zero(self, jogador_padrao):
         assert jogador_padrao.esta_vivo() is True
@@ -84,7 +69,6 @@ class TestEstaVivo:
     def test_vivo_apos_cura_que_evita_morte(self, jogador_quase_morto):
         jogador_quase_morto.curar(10)
         assert jogador_quase_morto.esta_vivo() is True
-
 
 class TestReceberDano:
     def test_dano_reduz_hp_corretamente(self, jogador_padrao):
@@ -119,7 +103,6 @@ class TestReceberDano:
     def test_dano_parametrizado(self, jogador_padrao, dano, hp_esperado):
         jogador_padrao.receber_dano(dano)
         assert jogador_padrao.hp == hp_esperado
-
 
 class TestCurar:
     def test_cura_aumenta_hp(self, jogador_ferido):
@@ -158,7 +141,6 @@ class TestCurar:
         jogador_ferido.curar(cura)
         assert jogador_ferido.hp == hp_esperado
 
-
 class TestGanharXp:
     def test_xp_acumulado_corretamente(self, jogador_padrao):
         jogador_padrao.ganhar_xp(30)
@@ -184,7 +166,6 @@ class TestGanharXp:
         jogador_padrao.ganhar_xp(xp_ganho)
         assert jogador_padrao.xp == xp_esperado
 
-
 class TestSequenciasDeEstado:
     def test_sequencia_dano_e_cura(self, jogador_padrao):
         jogador_padrao.receber_dano(15)
@@ -209,49 +190,35 @@ class TestSequenciasDeEstado:
         assert "20"    in rep
         assert "5"     in rep
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOCO 7 — aumenta_esq() — NOVO v2
-# ══════════════════════════════════════════════════════════════════════════════
-
 class TestAumentaEsq:
-    """Testa o sistema de esquiva — novo na v2."""
-
     def test_aumenta_esq_incrementa_corretamente(self, jogador_padrao):
-        """Caminho feliz: esq deve aumentar pelo bônus fornecido."""
         esq_antes = jogador_padrao.esq
         jogador_padrao.aumenta_esq(0.1)
         assert round(jogador_padrao.esq, 2) == round(esq_antes + 0.1, 2)
 
     def test_retorna_ganho_efetivo(self, jogador_padrao):
-        """Caminho feliz: retorno deve ser o incremento efetivamente aplicado."""
         ganho = jogador_padrao.aumenta_esq(0.1)
         assert round(ganho, 2) == 0.1
 
     def test_esq_nao_ultrapassa_esq_max(self, jogador_padrao):
-        """Limite: esquiva nunca deve ultrapassar 1.0."""
         jogador_padrao.aumenta_esq(9999.0)
         assert jogador_padrao.esq <= jogador_padrao.esq_max
 
     def test_esq_para_exatamente_em_um(self, jogador_padrao):
-        """Limite: com excesso, esq deve ser exatamente 1.0."""
         jogador_padrao.aumenta_esq(9999.0)
         assert jogador_padrao.esq == 1.0
 
     def test_retorno_limitado_ao_espaco_disponivel(self):
-        """Limite: retorno reflete só o espaço restante até esq_max."""
         j = Jogador("Quase Max", hp=20, atk=5, esq=0.95)
         ganho = j.aumenta_esq(0.5)
         assert round(ganho, 2) == 0.05
 
     def test_aumenta_esq_zero_nao_altera_valor(self, jogador_padrao):
-        """Borda: aumentar em 0 não deve mudar a esquiva."""
         esq_antes = jogador_padrao.esq
         jogador_padrao.aumenta_esq(0)
         assert jogador_padrao.esq == esq_antes
 
     def test_esq_negativa_levanta_value_error(self, jogador_padrao):
-        """Exceção: valor negativo deve lançar ValueError."""
         with pytest.raises(ValueError):
             jogador_padrao.aumenta_esq(-0.1)
 
@@ -263,42 +230,29 @@ class TestAumentaEsq:
         (9.9, 0.3, 1.0),
     ])
     def test_aumenta_esq_parametrizado(self, bonus, esq_inicial, esq_esperada):
-        """Parametrizado: verifica esq resultante para diferentes bônus."""
         j = Jogador("Teste", hp=20, atk=5, esq=esq_inicial)
         j.aumenta_esq(bonus)
         assert round(j.esq, 2) == esq_esperada
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOCO 8 — ganhar_moedas() — NOVO v2
-# ══════════════════════════════════════════════════════════════════════════════
-
 class TestGanharMoedas:
-    """Testa o sistema de economia do jogador — novo na v2."""
-
     def test_moedas_acumuladas_corretamente(self, jogador_padrao):
-        """Caminho feliz: moedas devem ser somadas ao total atual."""
         jogador_padrao.ganhar_moedas(30)
         assert jogador_padrao.moedas == 30
 
     def test_moedas_acumuladas_em_multiplas_chamadas(self, jogador_padrao):
-        """Caminho feliz: moedas devem acumular em chamadas sucessivas."""
         jogador_padrao.ganhar_moedas(15)
         jogador_padrao.ganhar_moedas(25)
         assert jogador_padrao.moedas == 40
 
     def test_ganhar_zero_moedas_nao_altera_total(self, jogador_padrao):
-        """Borda: ganhar 0 moedas não deve alterar o total."""
         jogador_padrao.ganhar_moedas(0)
         assert jogador_padrao.moedas == 0
 
     def test_moedas_negativas_levanta_value_error(self, jogador_padrao):
-        """Exceção: moedas negativas devem lançar ValueError."""
         with pytest.raises(ValueError):
             jogador_padrao.ganhar_moedas(-10)
 
     def test_moedas_acumulam_sobre_valor_inicial(self):
-        """Caminho feliz: moedas devem somar ao saldo inicial existente."""
         j = Jogador("Rico", hp=20, atk=5, moedas=50)
         j.ganhar_moedas(25)
         assert j.moedas == 75
@@ -307,27 +261,32 @@ class TestGanharMoedas:
         (0, 0), (10, 10), (100, 100), (999, 999),
     ])
     def test_ganhar_moedas_parametrizado(self, jogador_padrao, ganho, saldo_esperado):
-        """Parametrizado: verifica saldo final para diferentes ganhos."""
         jogador_padrao.ganhar_moedas(ganho)
         assert jogador_padrao.moedas == saldo_esperado
 
     def test_vitoria_de_combate_concede_moedas(self):
-        """
-        Integração: resolver_combate() deve transferir moedas do inimigo ao jogador.
-        """
         from jogo.sistemas.masmorra import Masmorra
         from jogo.entidades.inimigo  import Inimigo
 
         j = Jogador("Lutador", hp=100, atk=50)
         m = Masmorra(j)
 
-        dummy            = Inimigo.__new__(Inimigo)
-        dummy.nome       = "Dummy"
-        dummy.hp         = 1
-        dummy.atk        = 0
+        dummy = Inimigo.__new__(Inimigo)
+        dummy.nome = "Dummy"
+        dummy.hp = 1
+        dummy.hp_max = 1
+        dummy.atk = 0
         dummy.dificuldade = 1
-        dummy.xp         = 5
-        dummy.moedas     = 10
+        dummy.xp = 5
+        dummy.moedas = 10
+        dummy.modificador_fuga = 0.0
+        dummy.cura_percentual = 0.0
+        dummy.absorcao_dano = 0
+        dummy.bonus_atk_por_turno = 0
+        dummy.chance_atordoar = 0.0
+        dummy.tipo_especial = None
+        dummy.chance_miss = 0.10
+        dummy.chance_drop = 0.10
 
         m.resolver_combate(dummy)
         assert j.moedas == 10
