@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 # errado. Importando api/main.py primeiro (api/ está em sys.path[0]), evitamos isso.
 from main import app
 import session as session_mod
-from jogo.entidades.inimigo import Inimigo
+from jogo.entidades.inimigo import Inimigo, BandoDeGoblins
 from jogo.entidades.item import Item
 from jogo.entidades.loja import Loja
 
@@ -198,3 +198,57 @@ class TestSaveLoad:
         load = client.post("/game/load", json=save).json()
         nomes = [it["nome"] for it in load["jogador"]["inventario"]]
         assert "Relíquia" in nomes
+
+
+# ── Bando de Goblins: combate sequencial (Lote E) ─────────────────────────────
+
+class TestBandoSequencial:
+    def _montar_bando(self, sid):
+        """Coloca um bando de 3 goblins (cada um com 1 HP) como inimigo ativo."""
+        state = session_mod.get_session(sid)
+        state.masmorra.jogador.atk = 100        # mata cada goblin num golpe
+        fila = BandoDeGoblins().fila()
+        for g in fila:
+            g.hp = 1
+        state.inimigo_ativo = fila[0]
+        state.fila_inimigos = fila[1:]
+        return state
+
+    def test_derrotar_goblin_traz_o_proximo(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = self._montar_bando(sid)
+
+        resultados = []
+        for _ in range(20):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+            resultados.append(r["resultado"])
+            if r["resultado"] in ("vitoria", "derrota"):
+                break
+
+        # 2 transições "proximo" (goblin 1→2 e 2→3) e encerra em "vitoria"
+        assert resultados.count("proximo") == 2
+        assert resultados[-1] == "vitoria"
+        assert state.fila_inimigos == []
+        assert state.inimigo_ativo is None
+
+    def test_cada_goblin_concede_recompensa(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = self._montar_bando(sid)
+        moedas_antes = state.masmorra.jogador.moedas
+        total_moedas_bando = sum(g.moedas for g in [state.inimigo_ativo, *state.fila_inimigos])
+
+        for _ in range(20):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+            if r["resultado"] in ("vitoria", "derrota"):
+                break
+        # ganhou as moedas dos 3 goblins
+        assert state.masmorra.jogador.moedas == moedas_antes + total_moedas_bando
+
+    def test_fuga_escapa_do_bando_inteiro(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = self._montar_bando(sid)
+        state.masmorra.tentar_fuga = lambda inimigo=None: True   # força fuga
+        r = client.post(f"/game/{sid}/combat/flee").json()
+        assert r["resultado"] == "fuga"
+        assert state.fila_inimigos == []
+        assert state.inimigo_ativo is None

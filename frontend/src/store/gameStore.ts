@@ -590,13 +590,22 @@ function handleCombatResult(
   const newLog: CombatLog[] = [...log, { mensagem: res.mensagem, tipo }];
   const jogadorAtualizado = normalizeJogador(res.jogador);
 
-  // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente)
+  // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente).
+  // Lote E: no "proximo" (novo goblin do bando), reseta a barra de HP exibida
+  // para o HP cheio do novo inimigo — senão ela animaria do goblin morto (~0)
+  // para o HP do novo, parecendo uma cura.
   set({
     jogador: jogadorAtualizado,
     inimigo: res.inimigo ?? null,
     combatLog: newLog,
     loading: false,
+    ...(res.resultado === "proximo" && res.inimigo
+      ? { displayedEnemyHP: res.inimigo.hp_max }
+      : {}),
   });
+  if (res.resultado === "proximo") {
+    audio.playSfx("sfx_enemy_defeat");   // um goblin caiu; o próximo avança
+  }
 
   // SFX por tipo de ação
   if (action === "attack") {

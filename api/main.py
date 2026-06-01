@@ -55,7 +55,7 @@ from schemas import (
     UseItemResponse,
 )
 from session import GameState, create_session, delete_session, get_session, load_session
-from jogo.entidades.inimigo import Inimigo
+from jogo.entidades.inimigo import Inimigo, BandoDeGoblins
 from jogo.entidades.item    import Item
 from jogo.entidades.jogador import Jogador
 from jogo.entidades.loja    import Loja
@@ -279,6 +279,7 @@ def advance(session_id: str):
     state.loja_ativa        = None
     state.sala_pendente     = None
     state.jogador_atordoado = False
+    state.fila_inimigos     = []        # Lote E: zera fila de bando anterior
 
     # Story: andar máximo atingido → re-spawn boss final
     if state.modo == "story" and masmorra.andar_max and masmorra.andar >= masmorra.andar_max:
@@ -308,7 +309,15 @@ def advance(session_id: str):
     tipo, conteudo, descricao = masmorra.gerador.gerar_sala(masmorra.andar)
 
     if tipo == "inimigo":
-        state.inimigo_ativo = conteudo
+        # Lote E: uma horda vira um Bando de Goblins — 3 lutas em sequência.
+        if getattr(conteudo, "tipo_especial", None) == "horda":
+            fila = BandoDeGoblins().fila()
+            state.inimigo_ativo = fila[0]
+            state.fila_inimigos = fila[1:]
+            conteudo  = fila[0]
+            descricao = "Uma horda de goblins irrompe pela porta — eles vêm um atrás do outro!"
+        else:
+            state.inimigo_ativo = conteudo
         return SalaResponse(
             tipo="inimigo",
             descricao=descricao,
@@ -351,6 +360,67 @@ def advance(session_id: str):
 # 5. Atacar
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _resolver_derrota_inimigo(
+    session_id: str,
+    state: GameState,
+    inimigo: Inimigo,
+    mensagem: str,
+    dano_jogador: int,
+    miss_jogador: bool,
+) -> CombatActionResponse:
+    """
+    Inimigo morreu: concede recompensa (XP/moedas/loot) e decide o que vem.
+
+    Lote E: se ainda houver goblins na fila do Bando, retorna resultado
+    'proximo' com o próximo inimigo (a luta continua). Caso contrário, encerra
+    com 'vitoria' (ou vitória de campanha, se for o boss final).
+    Centraliza a lógica antes duplicada em attack e dodge.
+    """
+    jogador = state.masmorra.jogador
+    jogador.ganhar_xp(inimigo.xp)
+    jogador.ganhar_moedas(inimigo.moedas)
+    loot_drop = _rolar_loot(inimigo)
+    if loot_drop:
+        state.masmorra.aplicar_item(loot_drop)
+    mensagem += f" {inimigo.nome} foi derrotado!"
+
+    # Ainda há goblins na fila do bando? → próximo inimigo
+    if state.fila_inimigos:
+        proximo = state.fila_inimigos.pop(0)
+        state.inimigo_ativo = proximo
+        return CombatActionResponse(
+            resultado="proximo",
+            mensagem=mensagem + f" {proximo.nome} avança!",
+            dano_jogador=dano_jogador,
+            dano_inimigo=0,
+            jogador=_jogador_status(state),
+            inimigo=_inimigo_info(proximo),
+            miss_jogador=miss_jogador,
+            miss_inimigo=False,
+            loot=_item_info(loot_drop) if loot_drop else None,
+        )
+
+    state.inimigo_ativo = None
+    campanha = _checar_vitoria_campanha(
+        session_id, state, inimigo, mensagem,
+        dano_jogador, 0, miss_jogador, False, loot_drop,
+    )
+    if campanha:
+        return campanha
+
+    return CombatActionResponse(
+        resultado="vitoria",
+        mensagem=mensagem,
+        dano_jogador=dano_jogador,
+        dano_inimigo=0,
+        jogador=_jogador_status(state),
+        inimigo=_inimigo_info(inimigo),
+        miss_jogador=miss_jogador,
+        miss_inimigo=False,
+        loot=_item_info(loot_drop) if loot_drop else None,
+    )
+
+
 @app.post("/game/{session_id}/combat/attack", response_model=CombatActionResponse)
 def combat_attack(session_id: str):
     state   = _get_session(session_id)
@@ -377,31 +447,8 @@ def combat_attack(session_id: str):
             inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
 
     if inimigo.hp <= 0:
-        jogador.ganhar_xp(inimigo.xp)
-        jogador.ganhar_moedas(inimigo.moedas)
-        loot_drop = _rolar_loot(inimigo)
-        if loot_drop:
-            state.masmorra.aplicar_item(loot_drop)
-        mensagem += f" {inimigo.nome} foi derrotado!"
-        state.inimigo_ativo = None
-
-        campanha = _checar_vitoria_campanha(
-            session_id, state, inimigo, mensagem,
-            dano_jogador, 0, miss_jogador, False, loot_drop,
-        )
-        if campanha:
-            return campanha
-
-        return CombatActionResponse(
-            resultado="vitoria",
-            mensagem=mensagem,
-            dano_jogador=dano_jogador,
-            dano_inimigo=0,
-            jogador=_jogador_status(state),
-            inimigo=_inimigo_info(inimigo),
-            miss_jogador=miss_jogador,
-            miss_inimigo=False,
-            loot=_item_info(loot_drop) if loot_drop else None,
+        return _resolver_derrota_inimigo(
+            session_id, state, inimigo, mensagem, dano_jogador, miss_jogador
         )
 
     dano_inimigo, miss_inimigo, mensagem = _processar_ataque_inimigo(state, inimigo, mensagem)
@@ -469,31 +516,8 @@ def combat_dodge(session_id: str):
                 inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
 
         if inimigo.hp <= 0:
-            jogador.ganhar_xp(inimigo.xp)
-            jogador.ganhar_moedas(inimigo.moedas)
-            loot_drop = _rolar_loot(inimigo)
-            if loot_drop:
-                state.masmorra.aplicar_item(loot_drop)
-            mensagem += f" {inimigo.nome} foi derrotado!"
-            state.inimigo_ativo = None
-
-            campanha = _checar_vitoria_campanha(
-                session_id, state, inimigo, mensagem,
-                dano_jogador, 0, miss_jogador, False, loot_drop,
-            )
-            if campanha:
-                return campanha
-
-            return CombatActionResponse(
-                resultado="vitoria",
-                mensagem=mensagem,
-                dano_jogador=dano_jogador,
-                dano_inimigo=0,
-                jogador=_jogador_status(state),
-                inimigo=_inimigo_info(inimigo),
-                miss_jogador=miss_jogador,
-                miss_inimigo=False,
-                loot=_item_info(loot_drop) if loot_drop else None,
+            return _resolver_derrota_inimigo(
+                session_id, state, inimigo, mensagem, dano_jogador, miss_jogador
             )
 
         return CombatActionResponse(
@@ -552,6 +576,7 @@ def combat_flee(session_id: str):
 
     if state.masmorra.tentar_fuga(inimigo):
         state.inimigo_ativo = None
+        state.fila_inimigos = []        # Lote E: fugir escapa do bando inteiro
         return CombatActionResponse(
             resultado="fuga",
             mensagem=f"{jogador.nome} fugiu com sucesso!",
