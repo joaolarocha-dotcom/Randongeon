@@ -155,11 +155,11 @@ class TestEAndarDeBoss:
 
 class TestGerarBoss:
     """
-    Fórmulas v3 (fator = andar // 5):
-      HP     = 40 + fator * 18   →  5/10/15/20: 58/76/94/112
-      ATK    =  8 + fator *  3   →  5/10/15/20: 11/14/17/20
-      XP     = 80 + fator * 40   →  5/10/15/20: 120/160/200/240
-      moedas = 25 + fator *  8   →  5/10/15/20: 33/41/49/57
+    Fórmulas v3.2 / config I (fator = andar // 5):
+      HP     = 20 + fator * 20   →  5/10/15/20: 40/60/80/100
+      ATK    =  5 + fator *  3   →  5/10/15/20: 8/11/14/17
+      XP     = 80 + fator * 40   →  5/10/15/20: 120/160/200/240  (inalterado)
+      moedas = 25 + fator *  8   →  5/10/15/20: 33/41/49/57      (inalterado)
     """
 
     def test_retorna_inimigo(self, masmorra_padrao):
@@ -175,11 +175,11 @@ class TestGerarBoss:
 
     def test_boss_andar5_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 5
-        assert masmorra_padrao.gerar_boss().hp == 58
+        assert masmorra_padrao.gerar_boss().hp == 40
 
     def test_boss_andar5_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 5
-        assert masmorra_padrao.gerar_boss().atk == 11
+        assert masmorra_padrao.gerar_boss().atk == 8
 
     def test_boss_andar5_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 5
@@ -201,11 +201,11 @@ class TestGerarBoss:
 
     def test_boss_andar10_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 10
-        assert masmorra_padrao.gerar_boss().hp == 76
+        assert masmorra_padrao.gerar_boss().hp == 60
 
     def test_boss_andar10_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 10
-        assert masmorra_padrao.gerar_boss().atk == 14
+        assert masmorra_padrao.gerar_boss().atk == 11
 
     def test_boss_andar10_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 10
@@ -223,11 +223,11 @@ class TestGerarBoss:
 
     def test_boss_andar15_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 15
-        assert masmorra_padrao.gerar_boss().hp == 94
+        assert masmorra_padrao.gerar_boss().hp == 80
 
     def test_boss_andar15_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 15
-        assert masmorra_padrao.gerar_boss().atk == 17
+        assert masmorra_padrao.gerar_boss().atk == 14
 
     def test_boss_andar15_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 15
@@ -245,11 +245,11 @@ class TestGerarBoss:
 
     def test_boss_andar20_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 20
-        assert masmorra_padrao.gerar_boss().hp == 112
+        assert masmorra_padrao.gerar_boss().hp == 100
 
     def test_boss_andar20_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 20
-        assert masmorra_padrao.gerar_boss().atk == 20
+        assert masmorra_padrao.gerar_boss().atk == 17
 
     def test_boss_andar20_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 20

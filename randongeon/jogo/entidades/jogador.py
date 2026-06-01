@@ -16,8 +16,18 @@ class Jogador:
         hp      (int): Pontos de vida atuais.
         hp_max  (int): Pontos de vida máximos (definido no momento da criação).
         atk     (int): Poder de ataque base.
-        xp      (int): Experiência acumulada ao longo das runs.
+        xp      (int): Experiência TOTAL acumulada (nunca diminui).
+        nivel   (int): Nível atual do herói. Sobe conforme o XP acumulado.
     """
+
+    # ── Atributos de CLASSE (constantes de balanceamento, compartilhadas) ──────
+    # Slide "Atributos de Instância e de Classe": valores fixos que valem para
+    # TODOS os jogadores ficam na classe, não na instância.
+    ATK_POR_NIVEL = 2     # ganho de ATK a cada nível
+    HP_POR_NIVEL  = 12    # ganho de HP_max a cada nível
+    XP_BASE_NIVEL = 10    # fator-base do custo de XP (fórmula triangular)
+    ESQ_POR_NIVEL = 0.005 # pequeno ganho de esquiva por nível
+    ESQ_MAXIMA    = 0.6   # teto de esquiva por progressão de nível
 
     def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3, moedas: int = 0) -> None:
         """
@@ -48,6 +58,7 @@ class Jogador:
         self.hp     = hp
         self.atk    = atk
         self.xp     = xp
+        self.nivel  = 1          # todo herói começa no nível 1
         self.esq = esq
         self.esq_max = 1
         self.moedas = moedas
@@ -138,6 +149,58 @@ class Jogador:
         if quantidade < 0:
             raise ValueError("XP ganho não pode ser negativo.")
         self.xp += quantidade
+        self._atualizar_nivel()
+
+    # ── Progressão de nível ───────────────────────────────────────────────────
+
+    def xp_para_proximo_nivel(self) -> int:
+        """
+        XP TOTAL acumulado necessário para alcançar o próximo nível.
+
+        Usa uma curva triangular: custo = XP_BASE_NIVEL * nivel * (nivel + 1).
+        Assim os primeiros níveis chegam rápido (sensação de progresso) e os
+        níveis altos exigem cada vez mais XP.
+        """
+        return self.XP_BASE_NIVEL * self.nivel * (self.nivel + 1)
+
+    def _atualizar_nivel(self) -> int:
+        """
+        Sobe o herói de nível enquanto houver XP suficiente.
+
+        Encapsulamento: método _protegido (convenção do slide "Encapsulamento —
+        3 níveis de visibilidade"). É detalhe interno chamado por ganhar_xp();
+        não faz parte da interface pública usada pelas telas/API.
+
+        A cada nível: +ATK, +HP_max, pequeno +ESQ e CURA TOTAL (recompensa).
+
+        Retorna:
+            int: quantos níveis subiu nesta chamada (0 se não subiu).
+        """
+        niveis_ganhos = 0
+        while self.xp >= self.xp_para_proximo_nivel():
+            self.nivel  += 1
+            self.atk    += self.ATK_POR_NIVEL
+            self.hp_max += self.HP_POR_NIVEL
+            self.hp      = self.hp_max                       # cura total ao subir
+            self.esq     = min(self.ESQ_MAXIMA, self.esq + self.ESQ_POR_NIVEL)
+            niveis_ganhos += 1
+        return niveis_ganhos
+
+    # ── Pontuação (comparativo de competição) ─────────────────────────────────
+
+    @property
+    def pontuacao(self) -> int:
+        """
+        Pontuação simples do herói, para comparar runs entre jogadores.
+
+        Encapsulamento via @property (slide "@property — Getter e Setter"):
+        o valor é CALCULADO sob demanda a partir do estado, exposto como se
+        fosse um atributo (`jogador.pontuacao`), sem permitir escrita direta.
+
+        Fórmula (proposital de simples): XP acumulado + bônus por nível
+        alcançado + moedas guardadas.
+        """
+        return self.xp + (self.nivel - 1) * 50 + self.moedas
 
     def ganhar_moedas(self, quantidade: int) -> None:
         """
@@ -209,6 +272,6 @@ class Jogador:
     def __repr__(self) -> str:
         """Retorna representação legível do jogador para debug."""
         return (
-            f"Jogador(nome={self.nome!r}, hp={self.hp}/{self.hp_max}, "
-            f"atk={self.atk}, xp={self.xp})"
+            f"Jogador(nome={self.nome!r}, nivel={self.nivel}, "
+            f"hp={self.hp}/{self.hp_max}, atk={self.atk}, xp={self.xp})"
         )

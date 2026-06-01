@@ -290,3 +290,77 @@ class TestGanharMoedas:
 
         m.resolver_combate(dummy)
         assert j.moedas == 10
+
+# ── Balance v3.2: Sistema de Nível e Pontuação ────────────────────────────────
+
+class TestNivel:
+    """
+    Sistema de nível (config I). Custo triangular: XP_BASE_NIVEL * nivel * (nivel+1).
+    Ganho por nível: +ATK_POR_NIVEL atk, +HP_POR_NIVEL hp_max, cura total.
+    """
+
+    def test_nivel_inicial_e_um(self, jogador_padrao):
+        assert jogador_padrao.nivel == 1
+
+    def test_xp_para_proximo_nivel_inicial(self, jogador_padrao):
+        # 10 * 1 * 2 = 20
+        assert jogador_padrao.xp_para_proximo_nivel() == 20
+
+    def test_sobe_de_nivel_ao_atingir_threshold(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(20)
+        assert jogador_padrao.nivel == 2
+
+    def test_nao_sobe_com_xp_insuficiente(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(19)
+        assert jogador_padrao.nivel == 1
+
+    def test_ganho_de_atributos_ao_subir(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(20)
+        assert jogador_padrao.atk    == 7    # 5 + 2
+        assert jogador_padrao.hp_max == 32   # 20 + 12
+
+    def test_cura_total_ao_subir(self):
+        j = Jogador("Ferido", hp=20, atk=5)
+        j.receber_dano(15)          # hp = 5
+        j.ganhar_xp(20)             # sobe para nível 2
+        assert j.hp == j.hp_max     # curou ao subir
+
+    def test_multiplos_niveis_em_uma_chamada(self, jogador_padrao):
+        # 60 XP total cruza L2 (20) e L3 (60) de uma vez
+        jogador_padrao.ganhar_xp(60)
+        assert jogador_padrao.nivel == 3
+        assert jogador_padrao.atk   == 9     # 5 + 2*2
+
+    def test_xp_permanece_cumulativo_apos_subir(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(25)
+        assert jogador_padrao.xp == 25       # XP não é "gasto" ao subir
+
+    def test_esq_respeita_teto_de_nivel(self):
+        j = Jogador("Esquivo", hp=20, atk=5, esq=0.599)
+        j.ganhar_xp(100000)         # muitos níveis
+        assert j.esq <= Jogador.ESQ_MAXIMA
+
+    def test_repr_inclui_nivel(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(20)
+        assert "nivel=2" in repr(jogador_padrao)
+
+
+class TestPontuacao:
+    """Pontuação = xp + (nivel-1)*50 + moedas. Exposta via @property (só leitura)."""
+
+    def test_pontuacao_inicial_zero(self, jogador_padrao):
+        assert jogador_padrao.pontuacao == 0
+
+    def test_pontuacao_considera_xp(self):
+        j = Jogador("P", hp=20, atk=5)
+        j.ganhar_xp(10)             # xp=10, nivel=1 (precisa 20)
+        assert j.pontuacao == 10
+
+    def test_pontuacao_considera_nivel_e_moedas(self, jogador_padrao):
+        jogador_padrao.ganhar_xp(20)    # xp=20, nivel=2
+        jogador_padrao.ganhar_moedas(5)
+        assert jogador_padrao.pontuacao == 20 + 50 + 5
+
+    def test_pontuacao_e_somente_leitura(self, jogador_padrao):
+        with pytest.raises(AttributeError):
+            jogador_padrao.pontuacao = 999
