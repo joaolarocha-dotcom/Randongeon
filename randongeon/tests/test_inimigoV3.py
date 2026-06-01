@@ -306,17 +306,17 @@ class TestCorrecoesV3:
       - Moedas dif 2: 5-10 (era 6-11).
     """
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.11)
+    # Lote C: Golem entra no pool já no andar 5. O 3º random() (sorteio de
+    # especial) deve falhar (>= 0.40) para cair no ELITE COMUM.
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.11, 0.11, 0.50])
     @patch("jogo.entidades.inimigo.random.choice", return_value="Orc")
     @patch("jogo.entidades.inimigo.random.randint", side_effect=[12, 4, 40, 8])
     def test_mock_gera_inimigo_dificuldade_2_corrigido(
         self, mock_randint, mock_choice, mock_random
     ):
         """
-        CORRIGIDO (era andar=3): Elite exige andar >= 5 na v3.
-        random=0.11: horda? 0.11 > 0.10 → não. Elite? andar=5 >= 5 E 0.11 < 0.25 → sim.
-        Sem especiais em andar=5 (primeiro é golem no andar=8).
-        side_effect: hp=12, atk=4, xp=40, moedas=8.
+        Elite exige andar >= 5. horda? 0.11 > 0.10 → não. Elite? 0.11 < 0.25 → sim.
+        Especial? 0.50 >= 0.40 → não → elite comum. side_effect: hp=12, atk=4, xp=40, moedas=8.
         """
         inimigo = Inimigo.gerar(andar=5)
         assert inimigo.dificuldade == 2
@@ -336,12 +336,11 @@ class TestCorrecoesV3:
         inimigo = Inimigo.gerar(andar=4)
         assert inimigo.dificuldade == 1
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.11)
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.11, 0.11, 0.50])
     def test_inimigo_dif2_nome_pertence_ao_pool_correto_corrigido(self, mock_random):
         """
-        CORRIGIDO (era andar=3): usa andar=5 para gerar elite.
-        random=0.11: horda? 0.11 > 0.10 → não. Elite? 0.11 < 0.25 → sim.
-        Sem especiais em andar=5 → elite comum do NOMES_DIFICULDADE_2.
+        Elite no andar=5; especial sorteado falha (0.50 >= 0.40) → elite comum
+        do NOMES_DIFICULDADE_2.
         """
         inimigo = Inimigo.gerar(andar=5)
         assert inimigo.nome in NOMES_DIFICULDADE_2
@@ -356,11 +355,10 @@ class TestCorrecoesV3:
             i = Inimigo.gerar(andar=1)
             assert 0 <= i.moedas <= 4, f"moedas={i.moedas} fora do range 0-4"
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.11)
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.11, 0.11, 0.50] * 30)
     def test_inimigo_dif2_moedas_dentro_do_range_corrigido(self, mock_random):
         """
-        CORRIGIDO: andar=3→5, range 6-11→5-10 na v3.
-        random=0.11: horda? 0.11 > 0.10 → não. Elite? 0.11 < 0.25 → sim.
+        Elite no andar=5, especial sempre falha (0.50) → elite comum, moedas 5-10.
         """
         for _ in range(30):
             i = Inimigo.gerar(andar=5)

@@ -130,7 +130,9 @@ class TestGerar:
         assert inimigo.xp          == 15
         assert inimigo.moedas      == 3
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.1)
+    # Lote C: Golem entra no pool especial já no andar 5. Para testar o ELITE
+    # COMUM, o 3º random() (sorteio de especial) precisa falhar (>= 0.40).
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.1, 0.1, 0.9])
     @patch("jogo.entidades.inimigo.random.choice", return_value="Orc")
     @patch("jogo.entidades.inimigo.random.randint", side_effect=[12, 4, 40, 8])
     def test_mock_gera_inimigo_dificuldade_2(self, mock_randint, mock_choice, mock_random):
@@ -155,7 +157,7 @@ class TestGerar:
     def test_inimigo_dif1_nome_pertence_ao_pool_correto(self, mock_random):
         assert Inimigo.gerar(andar=1).nome in NOMES_DIFICULDADE_1
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.1)
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.1, 0.1, 0.9])
     def test_inimigo_dif2_nome_pertence_ao_pool_correto(self, mock_random):
         assert Inimigo.gerar(andar=5).nome in NOMES_DIFICULDADE_2
 
@@ -165,7 +167,7 @@ class TestGerar:
             i = Inimigo.gerar(andar=1)
             assert 0 <= i.moedas <= 4
 
-    @patch("jogo.entidades.inimigo.random.random", return_value=0.1)
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.1, 0.1, 0.9] * 20)
     def test_inimigo_dif2_moedas_dentro_do_range(self, mock_random):
         for _ in range(20):
             i = Inimigo.gerar(andar=5)

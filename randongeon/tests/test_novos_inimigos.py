@@ -5,7 +5,12 @@ from jogo.entidades.inimigo import (
     Nosferatu,
     GolemDePedra,
     HordaDeGoblins,
-    Banshee
+    Banshee,
+    LOOT_PADRAO,
+    LOOT_GOLEM,
+    LOOT_NOSFERATU,
+    LOOT_BANSHEE,
+    LOOT_HORDA,
 )
 from jogo.entidades.jogador import Jogador
 from jogo.sistemas.masmorra import Masmorra
@@ -71,18 +76,19 @@ class TestGolemDePedra:
         assert GolemDePedra().dificuldade == 2
     def test_tipo_especial_e_golem(self):
         assert GolemDePedra().tipo_especial == "golem"
-    def test_absorcao_dano_e_dois(self):
-        assert GolemDePedra().absorcao_dano == 2
+    def test_absorcao_dano_e_tres(self):
+        # Lote C: defesa do Golem subiu de 2 para 3.
+        assert GolemDePedra().absorcao_dano == 3
     def test_absorcao_reduz_dano_recebido(self):
         golem = GolemDePedra()
         golem.hp = 20
-        dano = golem.receber_dano(5)
-        assert dano == 3
-        assert golem.hp == 17
+        dano = golem.receber_dano(5)   # 5 - 3 de absorção = 2
+        assert dano == 2
+        assert golem.hp == 18
     def test_absorcao_maior_que_dano_resulta_zero(self):
         golem = GolemDePedra()
         hp_antes = golem.hp
-        dano = golem.receber_dano(2)
+        dano = golem.receber_dano(3)   # 3 - 3 de absorção = 0
         assert dano == 0
         assert golem.hp == hp_antes
     def test_ataque_de_forca_um_causa_zero_dano(self):
@@ -214,25 +220,31 @@ class TestCriarEspecial:
             pytest.skip("Dispatcher _criar_especial removido.")
 
 class TestThresholdsDeAndar:
+    # Thresholds antecipados (Lote C): Golem>=5, Nosferatu>=8, Banshee>=10.
     @patch("jogo.entidades.inimigo.random.random", return_value=0.50)
-    def test_golem_nao_disponivel_antes_do_andar_8(self, _):
+    def test_golem_nao_disponivel_antes_do_andar_5(self, _):
         for _ in range(20):
-            i = Inimigo.gerar(andar=7)
+            i = Inimigo.gerar(andar=4)
             assert getattr(i, "tipo_especial", None) != "golem"
     @patch("jogo.entidades.inimigo.random.choice", return_value=GolemDePedra)
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
-    def test_golem_disponivel_no_andar_8(self, _rand, _choice):
-        inimigo = Inimigo.gerar(andar=8)
+    def test_golem_disponivel_no_andar_5(self, _rand, _choice):
+        inimigo = Inimigo.gerar(andar=5)
         assert getattr(inimigo, "tipo_especial", None) == "golem"
     @patch("jogo.entidades.inimigo.random.choice", return_value=Nosferatu)
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
-    def test_vampiro_disponivel_no_andar_15(self, _rand, _choice):
-        inimigo = Inimigo.gerar(andar=15)
+    def test_nosferatu_disponivel_no_andar_8(self, _rand, _choice):
+        inimigo = Inimigo.gerar(andar=8)
         assert getattr(inimigo, "tipo_especial", None) == "nosferatu"
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
+    def test_nosferatu_nao_disponivel_no_andar_5(self, _):
+        # No andar 5 o pool especial só tem Golem → forçar especial sempre dá golem.
+        inimigo = Inimigo.gerar(andar=5)
+        assert getattr(inimigo, "tipo_especial", None) == "golem"
     @patch("jogo.entidades.inimigo.random.choice", return_value=Banshee)
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
-    def test_banshee_disponivel_no_andar_17(self, _rand, _choice):
-        inimigo = Inimigo.gerar(andar=17)
+    def test_banshee_disponivel_no_andar_10(self, _rand, _choice):
+        inimigo = Inimigo.gerar(andar=10)
         assert getattr(inimigo, "tipo_especial", None) == "banshee"
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.50])
     def test_elite_comum_quando_random_especial_acima_de_40(self, _):
@@ -297,3 +309,49 @@ class TestHpMaxEmTodosOsTipos:
             i = Inimigo.gerar(andar=10)
             assert hasattr(i, "hp_max")
             assert i.hp_max == i.hp
+
+class TestTabelaLoot:
+    """
+    Loot por tipo via polimorfismo (Lote C): cada subclasse sobrescreve
+    tabela_loot() devolvendo o seu pool; a base devolve o pool padrão.
+    """
+    def test_base_inimigo_usa_pool_padrao(self):
+        comum = Inimigo("Goblin", hp=5, atk=2, dificuldade=1, xp=10, moedas=2)
+        assert comum.tabela_loot() is LOOT_PADRAO
+
+    def test_golem_usa_pool_proprio(self):
+        assert GolemDePedra().tabela_loot() is LOOT_GOLEM
+
+    def test_nosferatu_usa_pool_proprio(self):
+        assert Nosferatu().tabela_loot() is LOOT_NOSFERATU
+
+    def test_banshee_usa_pool_proprio(self):
+        assert Banshee().tabela_loot() is LOOT_BANSHEE
+
+    def test_horda_usa_pool_proprio(self):
+        assert HordaDeGoblins().tabela_loot() is LOOT_HORDA
+
+    def test_polimorfismo_cada_tipo_devolve_seu_pool(self):
+        # Mesma chamada (tabela_loot), pools diferentes conforme o tipo concreto.
+        esperado = {
+            GolemDePedra:   LOOT_GOLEM,
+            Nosferatu:      LOOT_NOSFERATU,
+            Banshee:        LOOT_BANSHEE,
+            HordaDeGoblins: LOOT_HORDA,
+        }
+        for fabrica, pool in esperado.items():
+            assert fabrica().tabela_loot() is pool
+
+    def test_pools_nao_sao_vazios(self):
+        for pool in (LOOT_PADRAO, LOOT_GOLEM, LOOT_NOSFERATU, LOOT_BANSHEE, LOOT_HORDA):
+            assert len(pool) >= 1
+
+    def test_rolar_loot_usa_pool_do_tipo(self):
+        # Integração com a Masmorra: um Golem só dropa itens do pool do Golem.
+        from jogo.entidades.jogador import Jogador
+        from jogo.sistemas.masmorra import Masmorra
+        m = Masmorra(Jogador("H", hp=20, atk=5))
+        golem = GolemDePedra()
+        with patch("jogo.sistemas.masmorra.random.random", return_value=0.0):
+            loot = m._rolar_loot(golem)
+        assert loot in LOOT_GOLEM
