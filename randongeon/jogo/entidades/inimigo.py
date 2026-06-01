@@ -238,3 +238,60 @@ class Banshee(Inimigo):
 
     def tabela_loot(self) -> list:
         return LOOT_BANSHEE
+
+
+# ── Bando de Goblins: combate sequencial (Lote E) ─────────────────────────────
+
+class Goblin(Inimigo):
+    """
+    Um goblin individual de um Bando.
+
+    Herança (slide "Herança"): É UM Inimigo — herda combate, dano, cura etc.,
+    e usa super().__init__ para reaproveitar a construção.
+    Polimorfismo: sobrescreve tabela_loot() para dropar o pool da horda.
+    """
+    def __init__(self, nome: str, hp: int, atk: int, xp: int, moedas: int) -> None:
+        super().__init__(
+            nome=nome,
+            hp=hp,
+            atk=atk,
+            dificuldade=1,
+            xp=xp,
+            moedas=moedas,
+            modificador_fuga=0.20,
+            tipo_especial="horda",
+            chance_miss=0.15,
+            chance_drop=0.12,
+        )
+
+    def tabela_loot(self) -> list:
+        return LOOT_HORDA
+
+
+class BandoDeGoblins:
+    """
+    Um bando enfrentado em sequência (3 goblins IDÊNTICOS, um de cada vez).
+
+    Composição (slide "Composição vs Herança"): um Bando NÃO é um Inimigo —
+    ele TEM vários Goblins (relação "tem um"). O combate continua consumindo
+    UM Inimigo por vez; a fila de goblins é estado da sessão.
+
+    Os 3 goblins são iguais entre si (mesmo nome, mesmas stats) — no frontend
+    usam um único sprite "Goblin". Stats próximas às de um goblin comum.
+    """
+    TAMANHO = 3
+
+    def __init__(self) -> None:
+        # Rola as stats UMA vez e aplica aos 3 → goblins idênticos.
+        hp     = random.randint(4, 7)
+        atk    = random.randint(1, 2)
+        xp     = random.randint(8, 12)
+        moedas = random.randint(2, 4)
+        self.goblins = [
+            Goblin("Goblin", hp=hp, atk=atk, xp=xp, moedas=moedas)
+            for _ in range(self.TAMANHO)
+        ]
+
+    def fila(self) -> list:
+        """Devolve a fila de goblins (cópia), na ordem em que serão enfrentados."""
+        return list(self.goblins)

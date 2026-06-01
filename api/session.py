@@ -39,6 +39,9 @@ class GameState:
     loja_ativa:        Optional[Any]     = None
     sala_pendente:     Optional[dict]    = field(default=None)
     jogador_atordoado: bool              = False
+    # Lote E: fila de inimigos restantes de um Bando de Goblins (combate
+    # sequencial). Vazia em encontros normais.
+    fila_inimigos:     list              = field(default_factory=list)
 
 
 _sessions: dict[str, GameState] = {}

@@ -6,6 +6,8 @@ from jogo.entidades.inimigo import (
     GolemDePedra,
     HordaDeGoblins,
     Banshee,
+    Goblin,
+    BandoDeGoblins,
     LOOT_PADRAO,
     LOOT_GOLEM,
     LOOT_NOSFERATU,
@@ -355,3 +357,44 @@ class TestTabelaLoot:
         with patch("jogo.sistemas.masmorra.random.random", return_value=0.0):
             loot = m._rolar_loot(golem)
         assert loot in LOOT_GOLEM
+
+class TestBandoDeGoblins:
+    """
+    Lote E: Goblin (Herança), tabela_loot (Polimorfismo), BandoDeGoblins
+    (Composição: um Bando TEM 3 Goblins).
+    """
+    def test_goblin_e_um_inimigo(self):           # Herança ("é um")
+        g = Goblin("Goblin", hp=5, atk=1, xp=8, moedas=2)
+        assert isinstance(g, Inimigo)
+
+    def test_goblin_tipo_horda(self):
+        assert Goblin("Goblin", hp=5, atk=1, xp=8, moedas=2).tipo_especial == "horda"
+
+    def test_goblin_dropa_loot_da_horda(self):    # Polimorfismo
+        assert Goblin("Goblin", hp=5, atk=1, xp=8, moedas=2).tabela_loot() is LOOT_HORDA
+
+    def test_bando_tem_tres_goblins(self):        # Composição ("tem um")
+        fila = BandoDeGoblins().fila()
+        assert len(fila) == 3
+        assert all(isinstance(g, Goblin) for g in fila)
+
+    def test_bando_nao_e_inimigo(self):
+        # O Bando é um agrupador, NÃO um Inimigo (composição, não herança).
+        assert not isinstance(BandoDeGoblins(), Inimigo)
+
+    def test_fila_e_copia_defensiva(self):
+        bando = BandoDeGoblins()
+        fila = bando.fila()
+        fila.clear()
+        assert len(bando.fila()) == 3   # mutar a cópia não afeta o bando
+
+    def test_goblins_sao_identicos(self):
+        fila = BandoDeGoblins().fila()
+        # mesmo nome e mesmas stats entre os 3 (usam um único sprite "Goblin")
+        assert all(g.nome == "Goblin" for g in fila)
+        assert len({(g.hp, g.atk, g.xp, g.moedas) for g in fila}) == 1
+
+    def test_goblins_sao_fracos_dif1(self):
+        for g in BandoDeGoblins().fila():
+            assert g.dificuldade == 1
+            assert g.hp <= 9
