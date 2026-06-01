@@ -1,7 +1,7 @@
 import random
 from typing import Optional
 
-NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Nosferatu"]
+NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Bando de Goblins"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
 class Inimigo:
@@ -89,10 +89,8 @@ class Inimigo:
             pool_especiais = []
             if andar >= 8:
                 pool_especiais.append(GolemDePedra)
-            if andar >= 10:
-                pool_especiais.append(CacadorSombrio)
             if andar >= 15:
-                pool_especiais.append(VampiroDasSombras)
+                pool_especiais.append(Nosferatu)
             if andar >= 17:
                 pool_especiais.append(Banshee)
 
@@ -120,10 +118,12 @@ class Inimigo:
             f"atk={self.atk}, dificuldade={self.dificuldade}, xp={self.xp})"
         )
 
-class VampiroDasSombras(Inimigo):
+class Nosferatu(Inimigo):
+    # Antigo "Vampiro das Sombras" (renomeado no Lote B). Mantém a mecânica de
+    # regeneração ao causar dano. Herda de Inimigo e especializa o construtor.
     def __init__(self) -> None:
         super().__init__(
-            nome="Vampiro das Sombras",
+            nome="Nosferatu",
             hp=random.randint(12, 18),
             atk=random.randint(4, 6),
             dificuldade=2,
@@ -131,7 +131,7 @@ class VampiroDasSombras(Inimigo):
             moedas=random.randint(10, 15),
             modificador_fuga=-0.10,
             cura_percentual=0.20,
-            tipo_especial="vampiro",
+            tipo_especial="nosferatu",
             chance_miss=0.05,
             chance_drop=0.22
         )
@@ -149,22 +149,6 @@ class GolemDePedra(Inimigo):
             absorcao_dano=2,
             tipo_especial="golem",
             chance_miss=0.10,
-            chance_drop=0.20
-        )
-
-class CacadorSombrio(Inimigo):
-    def __init__(self) -> None:
-        super().__init__(
-            nome="Caçador Sombrio",
-            hp=random.randint(6, 10),
-            atk=random.randint(3, 5),
-            dificuldade=2,
-            xp=40,
-            moedas=random.randint(8, 12),
-            modificador_fuga=0.05,
-            bonus_atk_por_turno=1,
-            tipo_especial="cacador",
-            chance_miss=0.05,
             chance_drop=0.20
         )
 
