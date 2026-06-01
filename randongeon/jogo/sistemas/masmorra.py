@@ -156,9 +156,16 @@ class Masmorra:
             return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES_INFINITO == 0
 
     def gerar_boss(self) -> Inimigo:
+        # Curva progressiva (balance v3.2 — "config I" do simulador Monte Carlo):
+        # base baixa para SUAVIZAR o primeiro boss (andar 5) e passo alto para os
+        # bosses tardios continuarem ameaçadores. Casa com o sistema de nível do
+        # jogador, que faz o herói escalar junto.
+        #   andar:   5    10    15    20
+        #   HP:     40    60    80   100   (= 20 + fator*20)
+        #   ATK:     8    11    14    17   (= 5  + fator*3)
         fator  = self.andar // (BOSS_A_CADA_ANDARES if self.modo == "story" else BOSS_A_CADA_ANDARES_INFINITO)
-        hp     = 40 + (fator * 18)
-        atk    =  8 + (fator * 3)
+        hp     = 20 + (fator * 20)
+        atk    =  5 + (fator * 3)
         xp     = 80 + (fator * 40)
         moedas = 25 + (fator * 8)
         nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")
