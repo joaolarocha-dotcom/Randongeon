@@ -2,9 +2,8 @@ import pytest
 from unittest.mock import patch
 from jogo.entidades.inimigo import (
     Inimigo,
-    VampiroDasSombras,
+    Nosferatu,
     GolemDePedra,
-    CacadorSombrio,
     HordaDeGoblins,
     Banshee
 )
@@ -31,37 +30,37 @@ def _dummy(hp=1, atk=1, xp=10, moedas=5) -> Inimigo:
     _set_atributos_especiais(i)
     return i
 
-class TestVampiroDasSombras:
+class TestNosferatu:
     def test_fabrica_retorna_instancia_de_inimigo(self):
-        assert isinstance(VampiroDasSombras(), Inimigo)
+        assert isinstance(Nosferatu(), Inimigo)
     def test_nome_correto(self):
-        assert VampiroDasSombras().nome == "Vampiro das Sombras"
+        assert Nosferatu().nome == "Nosferatu"
     def test_dificuldade_e_dois(self):
-        assert VampiroDasSombras().dificuldade == 2
+        assert Nosferatu().dificuldade == 2
     def test_tipo_especial_e_vampiro(self):
-        assert VampiroDasSombras().tipo_especial == "vampiro"
+        assert Nosferatu().tipo_especial == "nosferatu"
     def test_cura_percentual_e_vinte_por_cento(self):
-        assert VampiroDasSombras().cura_percentual == 0.20
+        assert Nosferatu().cura_percentual == 0.20
     def test_modificador_fuga_e_negativo(self):
-        assert VampiroDasSombras().modificador_fuga < 0.0
+        assert Nosferatu().modificador_fuga < 0.0
     def test_hp_dentro_do_range(self):
         for _ in range(20):
-            v = VampiroDasSombras()
+            v = Nosferatu()
             assert 12 <= v.hp <= 18
     def test_hp_max_igual_ao_hp_inicial(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         assert v.hp_max == v.hp
     def test_atk_dentro_do_range(self):
         for _ in range(20):
-            assert 4 <= VampiroDasSombras().atk <= 6
+            assert 4 <= Nosferatu().atk <= 6
     def test_moedas_positivas(self):
-        assert VampiroDasSombras().moedas > 0
+        assert Nosferatu().moedas > 0
     def test_absorcao_dano_e_zero(self):
-        assert VampiroDasSombras().absorcao_dano == 0
+        assert Nosferatu().absorcao_dano == 0
     def test_chance_atordoar_e_zero(self):
-        assert VampiroDasSombras().chance_atordoar == 0.0
+        assert Nosferatu().chance_atordoar == 0.0
     def test_bonus_atk_por_turno_e_zero(self):
-        assert VampiroDasSombras().bonus_atk_por_turno == 0
+        assert Nosferatu().bonus_atk_por_turno == 0
 
 class TestGolemDePedra:
     def test_fabrica_retorna_instancia_de_inimigo(self):
@@ -99,33 +98,6 @@ class TestGolemDePedra:
         assert GolemDePedra().cura_percentual == 0.0
     def test_chance_atordoar_e_zero(self):
         assert GolemDePedra().chance_atordoar == 0.0
-
-class TestCacadorSombrio:
-    def test_fabrica_retorna_instancia_de_inimigo(self):
-        assert isinstance(CacadorSombrio(), Inimigo)
-    def test_nome_correto(self):
-        assert CacadorSombrio().nome == "Caçador Sombrio"
-    def test_dificuldade_e_dois(self):
-        assert CacadorSombrio().dificuldade == 2
-    def test_tipo_especial_e_cacador(self):
-        assert CacadorSombrio().tipo_especial == "cacador"
-    def test_bonus_atk_por_turno_e_um(self):
-        assert CacadorSombrio().bonus_atk_por_turno == 1
-    def test_hp_baixo_intencional(self):
-        for _ in range(20):
-            c = CacadorSombrio()
-            assert 6 <= c.hp <= 10
-    def test_modificador_fuga_e_positivo(self):
-        assert CacadorSombrio().modificador_fuga > 0.0
-    def test_cura_percentual_e_zero(self):
-        assert CacadorSombrio().cura_percentual == 0.0
-    def test_absorcao_dano_e_zero(self):
-        assert CacadorSombrio().absorcao_dano == 0
-    def test_atk_inicial_dentro_do_range(self):
-        for _ in range(20):
-            assert 3 <= CacadorSombrio().atk <= 5
-    def test_moedas_positivas(self):
-        assert CacadorSombrio().moedas > 0
 
 class TestHordaDeGoblins:
     def test_fabrica_retorna_instancia_de_inimigo(self):
@@ -189,28 +161,28 @@ class TestBanshee:
 
 class TestCurarInimigo:
     def test_curar_aumenta_hp(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         v.hp_max = 99
         v.hp = 10
         v.curar(5)
         assert v.hp == 15
     def test_curar_nao_ultrapassa_hp_max(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         hp_max = v.hp_max
         v.hp = hp_max - 2
         v.curar(100)
         assert v.hp == hp_max
     def test_curar_valor_negativo_levanta_value_error(self):
         with pytest.raises(ValueError):
-            VampiroDasSombras().curar(-1)
+            Nosferatu().curar(-1)
     def test_curar_zero_nao_altera_hp(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         v.hp_max = 99
         v.hp = 10
         v.curar(0)
         assert v.hp == 10
     def test_hp_max_permanece_fixo_apos_cura(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         hp_max_antes = v.hp_max
         v.hp = 5
         v.curar(100)
@@ -218,9 +190,8 @@ class TestCurarInimigo:
 
 class TestCriarEspecial:
     @pytest.mark.parametrize("tipo,classe_esperada", [
-        ("vampiro", VampiroDasSombras),
+        ("nosferatu", Nosferatu),
         ("golem", GolemDePedra),
-        ("cacador", CacadorSombrio),
         ("banshee", Banshee),
     ])
     def test_dispatcher_cria_tipo_correto(self, tipo, classe_esperada):
@@ -253,16 +224,11 @@ class TestThresholdsDeAndar:
     def test_golem_disponivel_no_andar_8(self, _rand, _choice):
         inimigo = Inimigo.gerar(andar=8)
         assert getattr(inimigo, "tipo_especial", None) == "golem"
-    @patch("jogo.entidades.inimigo.random.choice", return_value=CacadorSombrio)
-    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
-    def test_cacador_disponivel_no_andar_10(self, _rand, _choice):
-        inimigo = Inimigo.gerar(andar=10)
-        assert getattr(inimigo, "tipo_especial", None) == "cacador"
-    @patch("jogo.entidades.inimigo.random.choice", return_value=VampiroDasSombras)
+    @patch("jogo.entidades.inimigo.random.choice", return_value=Nosferatu)
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
     def test_vampiro_disponivel_no_andar_15(self, _rand, _choice):
         inimigo = Inimigo.gerar(andar=15)
-        assert getattr(inimigo, "tipo_especial", None) == "vampiro"
+        assert getattr(inimigo, "tipo_especial", None) == "nosferatu"
     @patch("jogo.entidades.inimigo.random.choice", return_value=Banshee)
     @patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.20])
     def test_banshee_disponivel_no_andar_17(self, _rand, _choice):
@@ -289,7 +255,7 @@ class TestFugaVariavelPorTipo:
         assert m.tentar_fuga(horda) is True
     @patch("jogo.sistemas.masmorra.random.random", return_value=0.55)
     def test_vampiro_mais_dificil_fugir(self, _mock):
-        vampiro = VampiroDasSombras()
+        vampiro = Nosferatu()
         m = self._masmorra()
         assert m.tentar_fuga(vampiro) is False
     @patch("jogo.sistemas.masmorra.random.random", return_value=0.55)
@@ -297,11 +263,6 @@ class TestFugaVariavelPorTipo:
         banshee = Banshee()
         m = self._masmorra()
         assert m.tentar_fuga(banshee) is False
-    @patch("jogo.sistemas.masmorra.random.random", return_value=0.53)
-    def test_cacador_ligeiramente_mais_facil_fugir(self, _mock):
-        cacador = CacadorSombrio()
-        m = self._masmorra()
-        assert m.tentar_fuga(cacador) is True
     @patch("jogo.sistemas.masmorra.random.random", return_value=0.49)
     def test_inimigo_comum_fuga_padrao(self, _mock):
         comum = Inimigo("Goblin", hp=5, atk=1, dificuldade=1, xp=10, moedas=2)
@@ -315,9 +276,8 @@ class TestFugaVariavelPorTipo:
 
 class TestHpMaxEmTodosOsTipos:
     @pytest.mark.parametrize("fabrica", [
-        VampiroDasSombras,
+        Nosferatu,
         GolemDePedra,
-        CacadorSombrio,
         HordaDeGoblins,
         Banshee,
     ])
@@ -330,7 +290,7 @@ class TestHpMaxEmTodosOsTipos:
         golem.receber_dano(5)
         assert golem.hp_max == hp_max_antes
     def test_repr_exibe_hp_max(self):
-        v = VampiroDasSombras()
+        v = Nosferatu()
         assert f"{v.hp}/{v.hp_max}" in repr(v)
     def test_inimigo_gerado_via_gerar_tem_hp_max(self):
         for _ in range(30):

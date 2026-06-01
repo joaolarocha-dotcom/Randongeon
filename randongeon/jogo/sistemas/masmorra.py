@@ -65,11 +65,10 @@ LORE = [
 
 def _indicador_especial(inimigo: Inimigo) -> str:
     indicadores = {
-        "vampiro": " 🩸 [Regeneração 20%]",
-        "golem":   " 🪨 [Armadura: 2]",
-        "cacador": " ⚔️  [ATK +1/turno]",
-        "horda":   " 👹 [Horda]",
-        "banshee": " 💀 [Atordoamento 30%]",
+        "nosferatu": " 🩸 [Regeneração 20%]",
+        "golem":     " 🪨 [Armadura: 2]",
+        "horda":     " 👹 [Horda]",
+        "banshee":   " 💀 [Atordoamento 30%]",
     }
     tipo = getattr(inimigo, 'tipo_especial', None)
     return indicadores.get(tipo, "")
@@ -267,7 +266,7 @@ class Masmorra:
                             cura = max(1, int(dano_dobrado * inimigo.cura_percentual))
                             inimigo.curar(cura)
                             print(
-                                f"O Vampiro das Sombras absorveu sua energia "
+                                f"O {inimigo.nome} absorveu sua energia "
                                 f"vital e se curou em {cura} HP! "
                                 f"(HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)})\n"
                             )
@@ -321,7 +320,7 @@ class Masmorra:
                     cura = max(1, int(dano_causado * inimigo.cura_percentual))
                     inimigo.curar(cura)
                     print(
-                        f"O Vampiro das Sombras absorveu sua energia "
+                        f"O {inimigo.nome} absorveu sua energia "
                         f"vital e se curou em {cura} HP! "
                         f"(HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)})\n"
                     )
