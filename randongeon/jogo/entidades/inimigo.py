@@ -1,8 +1,39 @@
 import random
 from typing import Optional
 
+from jogo.entidades.item import Item
+
 NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Bando de Goblins"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
+
+# ── Pools de loot (Lote C) ────────────────────────────────────────────────────
+# Cada tipo de inimigo tem um pool temático. O pool padrão (LOOT_PADRAO) é usado
+# por inimigos comuns e bosses. As subclasses sobrescrevem tabela_loot() para
+# devolver o seu pool — é polimorfismo: quem rola o loot chama inimigo.tabela_loot()
+# sem precisar saber o tipo concreto.
+LOOT_PADRAO = [
+    Item("Poção Menor de Cura",  bonus_hp=3),
+    Item("Erva Medicinal",       bonus_hp=2),
+    Item("Fragmento de Cristal", bonus_atk=1),
+    Item("Pó de Velocidade",     bonus_esq=0.03),
+    Item("Poção de Cura",        bonus_hp=5),
+]
+LOOT_GOLEM = [
+    Item("Fragmento de Pedra", bonus_hp=4),
+    Item("Núcleo de Pedra",    bonus_atk=2),
+]
+LOOT_NOSFERATU = [
+    Item("Sangue Vital",     bonus_hp=6),
+    Item("Essência Sombria", bonus_atk=2),
+]
+LOOT_BANSHEE = [
+    Item("Eco da Banshee",      bonus_esq=0.08),
+    Item("Grito Cristalizado",  bonus_atk=1),
+]
+LOOT_HORDA = [
+    Item("Bolsa de Moedas Goblin", bonus_hp=2),
+    Item("Adaga Enferrujada",      bonus_atk=1),
+]
 
 class Inimigo:
     def __init__(
@@ -77,6 +108,16 @@ class Inimigo:
         self.hp = min(self.hp_max, self.hp + quantidade)
         return self.hp - hp_antes
 
+    def tabela_loot(self) -> list:
+        """
+        Pool de itens que este inimigo pode dropar.
+
+        Polimorfismo (slide "Polimorfismo"): a base devolve o pool padrão; cada
+        subclasse especial SOBRESCREVE este método com o seu pool temático.
+        Quem rola o loot chama inimigo.tabela_loot() sem saber o tipo concreto.
+        """
+        return LOOT_PADRAO
+
     @staticmethod
     def gerar(andar: int = 1) -> "Inimigo":
         if andar < 1:
@@ -86,12 +127,15 @@ class Inimigo:
             return HordaDeGoblins()
 
         if andar >= 5 and random.random() < 0.25:
+            # Thresholds antecipados (Lote C): os especiais aparecem mais cedo,
+            # quando o herói ainda é vulnerável — validado por simulação, pois só
+            # assim as mecânicas (defesa/cura/atordoar) fazem diferença real.
             pool_especiais = []
-            if andar >= 8:
+            if andar >= 5:
                 pool_especiais.append(GolemDePedra)
-            if andar >= 15:
+            if andar >= 8:
                 pool_especiais.append(Nosferatu)
-            if andar >= 17:
+            if andar >= 10:
                 pool_especiais.append(Banshee)
 
             if pool_especiais and random.random() < 0.40:
@@ -136,6 +180,9 @@ class Nosferatu(Inimigo):
             chance_drop=0.22
         )
 
+    def tabela_loot(self) -> list:   # Polimorfismo: sobrescreve o pool padrão
+        return LOOT_NOSFERATU
+
 class GolemDePedra(Inimigo):
     def __init__(self) -> None:
         super().__init__(
@@ -146,11 +193,14 @@ class GolemDePedra(Inimigo):
             xp=50,
             moedas=random.randint(10, 15),
             modificador_fuga=0.40,
-            absorcao_dano=2,
+            absorcao_dano=3,          # Lote C: defesa maior (era 2)
             tipo_especial="golem",
             chance_miss=0.10,
             chance_drop=0.20
         )
+
+    def tabela_loot(self) -> list:
+        return LOOT_GOLEM
 
 class HordaDeGoblins(Inimigo):
     def __init__(self) -> None:
@@ -167,6 +217,9 @@ class HordaDeGoblins(Inimigo):
             chance_drop=0.12
         )
 
+    def tabela_loot(self) -> list:
+        return LOOT_HORDA
+
 class Banshee(Inimigo):
     def __init__(self) -> None:
         super().__init__(
@@ -182,3 +235,6 @@ class Banshee(Inimigo):
             chance_miss=0.05,
             chance_drop=0.25
         )
+
+    def tabela_loot(self) -> list:
+        return LOOT_BANSHEE

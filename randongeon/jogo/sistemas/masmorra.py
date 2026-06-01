@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from jogo.entidades.jogador import Jogador
-from jogo.entidades.inimigo import Inimigo
+from jogo.entidades.inimigo import Inimigo, LOOT_PADRAO
 from jogo.entidades.item    import Item
 from jogo.sistemas.gerador  import GeradorSala
 from jogo.entidades.loja    import Loja
@@ -13,13 +13,10 @@ BOSS_A_CADA_ANDARES          = 5
 BOSS_A_CADA_ANDARES_INFINITO = 3
 CHANCE_MISS_JOGADOR          = 0.10
 
-POOL_LOOT = [
-    Item("Poção Menor de Cura",  bonus_hp=3),
-    Item("Erva Medicinal",       bonus_hp=2),
-    Item("Fragmento de Cristal", bonus_atk=1),
-    Item("Pó de Velocidade",     bonus_esq=0.03),
-    Item("Poção de Cura",        bonus_hp=5),
-]
+# POOL_LOOT mantido por compatibilidade (API e testes importam daqui). A partir
+# do Lote C ele é o pool PADRÃO definido em inimigo.py; cada inimigo especial tem
+# o seu próprio via inimigo.tabela_loot() (polimorfismo).
+POOL_LOOT = LOOT_PADRAO
 
 NOMES_BOSS = {
     5:  "Arauto das Sombras",
@@ -182,7 +179,8 @@ class Masmorra:
     def _rolar_loot(self, inimigo: Inimigo):
         chance = 0.50 if inimigo.dificuldade == 3 else getattr(inimigo, 'chance_drop', 0.10)
         if random.random() < chance:
-            return random.choice(POOL_LOOT)
+            # Lote C: pool específico do tipo de inimigo (polimorfismo).
+            return random.choice(inimigo.tabela_loot())
         return None
 
     def mostrar_lore(self) -> None:
