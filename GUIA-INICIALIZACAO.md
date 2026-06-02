@@ -71,20 +71,26 @@ pip install -r api\requirements.txt
 pip install -r randongeon\requirements.txt
 ```
 
-### 2.4 (Opcional) Rodar os testes do backend
+### 2.4 (Opcional) Rodar os testes
 
 ```powershell
-pytest randongeon\tests\ -v
+# Game logic (de dentro de randongeon/)
+cd randongeon; pytest tests\ -q
+
+# API (de dentro de api/ — precisa de httpx, em api\requirements.txt)
+cd api; pytest test_api.py -q
 ```
 
-Devem passar 352+ testes.
+Devem passar ~564 testes de game logic e ~24 da API.
 
 ### 2.5 Iniciar a API (terminal 1)
 
-Com o venv ativo, **na raiz do projeto**:
+Com o venv ativo, **a partir da pasta `api/`** (o `main.py` importa `schemas`/`session`
+como módulos locais, então a API precisa subir de dentro de `api/`):
 
 ```powershell
-uvicorn api.main:app --reload --port 8000
+cd api
+uvicorn main:app --reload --port 8000
 ```
 
 Aguarde a mensagem `Uvicorn running on http://127.0.0.1:8000`. Você pode testar abrindo:
@@ -160,7 +166,7 @@ O jogo toca BGM e SFX automaticamente. Por restrições do navegador, a música 
 
 | Sintoma | Causa provável | Solução |
 |---------|----------------|---------|
-| `ModuleNotFoundError: No module named 'api'` | Rodou uvicorn de outra pasta | Volte para a raiz e rode `uvicorn api.main:app --reload --port 8000` |
+| `ModuleNotFoundError: No module named 'schemas'`/`'api'` | Rodou uvicorn da pasta errada | Entre em `api/` e rode `uvicorn main:app --reload --port 8000` |
 | Frontend mostra "Erro: Failed to fetch" | API não está rodando | Confirme o terminal 1 com `uvicorn` ativo na porta 8000 |
 | `npm install` falha | Node.js antigo | Atualize para Node 18+ (`node --version`) |
 | Porta 8000 ocupada | Outro processo | Use `--port 8001` no uvicorn e edite `frontend/src/api/client.ts` linha 1 (`API_BASE`) |
@@ -184,9 +190,9 @@ O jogo toca BGM e SFX automaticamente. Por restrições do navegador, a música 
 
 ```powershell
 # Backend
-.\.venv\Scripts\Activate.ps1              # ativa venv
-uvicorn api.main:app --reload --port 8000 # roda API
-pytest randongeon\tests\ -v               # roda testes
+.\.venv\Scripts\Activate.ps1              # ativa venv (na raiz)
+cd api; uvicorn main:app --reload --port 8000   # roda API (de dentro de api/)
+cd randongeon; pytest tests\ -v           # roda testes (de dentro de randongeon/)
 
 # Frontend
 cd frontend
