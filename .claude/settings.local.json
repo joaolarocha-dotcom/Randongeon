@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m venv .venv)",
-      "Bash(.venv/Scripts/pip install *)",
-      "Bash(\"../.venv/Scripts/uvicorn\" main:app --reload --port 8000)"
-    ]
-  }
-}
