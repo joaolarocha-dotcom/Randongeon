@@ -122,13 +122,15 @@ class TestGerar:
     @patch("jogo.entidades.inimigo.random.choice", return_value="Goblin")
     @patch("jogo.entidades.inimigo.random.randint", side_effect=[5, 2, 15, 3])
     def test_mock_gera_inimigo_dificuldade_1(self, mock_randint, mock_choice, mock_random):
+        # Balance v4: comuns escalam por andar. Em andar=3: +bonus_hp=round(3*1.8)=5,
+        # +bonus_atk=3//5=0, +bonus_moedas=3//2=1.
         inimigo = Inimigo.gerar(andar=3)
         assert inimigo.dificuldade == 1
         assert inimigo.nome        == "Goblin"
-        assert inimigo.hp          == 5
-        assert inimigo.atk         == 2
+        assert inimigo.hp          == 10   # 5 + 5
+        assert inimigo.atk         == 2    # 2 + 0
         assert inimigo.xp          == 15
-        assert inimigo.moedas      == 3
+        assert inimigo.moedas      == 4    # 3 + 1
 
     # Lote C: Golem entra no pool especial já no andar 5. Para testar o ELITE
     # COMUM, o 3º random() (sorteio de especial) precisa falhar (>= 0.40).
@@ -136,13 +138,15 @@ class TestGerar:
     @patch("jogo.entidades.inimigo.random.choice", return_value="Orc")
     @patch("jogo.entidades.inimigo.random.randint", side_effect=[12, 4, 40, 8])
     def test_mock_gera_inimigo_dificuldade_2(self, mock_randint, mock_choice, mock_random):
+        # Balance v4: elites escalam por andar. Em andar=5: bonus_hp=9 → elite +round(9*1.4)=13;
+        # bonus_atk=1 → elite +1+1=2; bonus_moedas=2.
         inimigo = Inimigo.gerar(andar=5)
         assert inimigo.dificuldade == 2
         assert inimigo.nome        == "Orc"
-        assert inimigo.hp          == 12
-        assert inimigo.atk         == 4
+        assert inimigo.hp          == 25   # 12 + 13
+        assert inimigo.atk         == 6    # 4 + 2
         assert inimigo.xp          == 40
-        assert inimigo.moedas      == 8
+        assert inimigo.moedas      == 10   # 8 + 2
 
     @patch("jogo.entidades.inimigo.random.random", return_value=0.1)
     def test_elite_nao_aparece_antes_do_andar_3(self, mock_random):
@@ -171,13 +175,26 @@ class TestGerar:
     def test_inimigo_dif2_moedas_dentro_do_range(self, mock_random):
         for _ in range(20):
             i = Inimigo.gerar(andar=5)
-            assert 5 <= i.moedas <= 10
+            assert 7 <= i.moedas <= 12   # base 5-10 + bonus_moedas (5//2=2)
 
 class TestEscalonamentoPorAndar:
     def test_inimigos_andar_alto_tem_hp_medio_maior(self):
         hp_andar_1  = [Inimigo.gerar(andar=1).hp  for _ in range(30)]
         hp_andar_10 = [Inimigo.gerar(andar=10).hp for _ in range(30)]
         assert (sum(hp_andar_10) / 30) >= (sum(hp_andar_1) / 30)
+
+    # Balance v4: comuns escalam HP/ATK por andar (random=0.9 força o comum).
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.9)
+    def test_comum_escala_hp_fortemente_por_andar(self, _):
+        media_a1  = sum(Inimigo.gerar(andar=1).hp  for _ in range(40)) / 40
+        media_a20 = sum(Inimigo.gerar(andar=20).hp for _ in range(40)) / 40
+        assert media_a20 > media_a1 + 25   # andar 20 bem mais tankudo
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.9)
+    def test_comum_escala_atk_por_andar(self, _):
+        atk_max_a1  = max(Inimigo.gerar(andar=1).atk  for _ in range(40))
+        atk_min_a20 = min(Inimigo.gerar(andar=20).atk for _ in range(40))
+        assert atk_min_a20 > atk_max_a1     # +4 de ATK no andar 20 (20//5)
 
     def test_todo_inimigo_gerado_e_instancia_valida(self):
         for andar in [1, 2, 3, 5, 10]:
