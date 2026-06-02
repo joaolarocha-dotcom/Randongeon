@@ -41,6 +41,7 @@ class JogadorStatus(BaseModel):
     xp:        int
     nivel:     int                    = 1   # ← Lote D: nível real (Lote A)
     pontuacao: int                    = 0   # ← Lote G: pontuação (prévia do Lote H)
+    score:     int                    = 0   # ← Lote H: score da run (pontuacao + andar*100)
     moedas:    int
     andar:     int                    = 0   # ← novo Lote 2A
     inventario: List[ItemInventario]  = []  # ← novo Lote 2A

@@ -176,6 +176,16 @@ class Masmorra:
             raise ValueError("Item não pode ser None.")
         return item.usar(self.jogador)
 
+    def calcular_score(self) -> int:
+        """
+        Pontuação total da run (Lote H): pontuação do herói + bônus por andar.
+
+        Combina o estado do jogador (jogador.pontuacao) com o andar alcançado
+        — métrica de "quão longe você foi", especialmente no modo infinito.
+        Serve de comparativo de competição (placar).
+        """
+        return self.jogador.pontuacao + self.andar * 100
+
     def _rolar_loot(self, inimigo: Inimigo):
         chance = 0.50 if inimigo.dificuldade == 3 else getattr(inimigo, 'chance_drop', 0.10)
         if random.random() < chance:
