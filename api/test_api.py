@@ -315,3 +315,33 @@ class TestCorrecoesLoteF:
         # tenta fugir uma vez (cai no ramo que ajusta modificador_fuga)
         client.post(f"/game/{sid}/combat/flee")
         assert boss.modificador_fuga == -0.15 * (15 // 5)   # -0.45
+
+
+# ── Vitória de campanha + pontuação (Lote G) ──────────────────────────────────
+
+class TestVitoriaCampanha:
+    def test_derrotar_boss_andar_20_retorna_vitoria_campanha(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        jog = state.masmorra.jogador
+        jog.atk = 1000
+        state.masmorra.andar = state.masmorra.andar_max   # andar 20
+        boss = state.masmorra.gerar_boss()
+        boss.hp = 1
+        state.inimigo_ativo = boss
+
+        resultado = "continua"
+        for _ in range(5):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+            resultado = r["resultado"]
+            if resultado != "continua":
+                break
+        assert resultado == "vitoria_campanha"
+
+    def test_status_inclui_pontuacao(self):
+        sid = _nova_sessao("story")["session_id"]
+        jog = session_mod.get_session(sid).masmorra.jogador
+        jog.ganhar_xp(20)                  # sobe para o nível 2
+        r = client.get(f"/game/{sid}/status").json()
+        assert "pontuacao" in r["jogador"]
+        assert r["jogador"]["pontuacao"] == jog.pontuacao
