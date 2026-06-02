@@ -47,7 +47,8 @@ class TestNewGame:
                       "nivel", "moedas", "andar", "inventario"):
             assert campo in j, f"faltou {campo} no JogadorStatus"
         assert j["nivel"] == 1
-        assert j["inventario"] == []
+        # Lote F: toda run começa com 2 itens iniciais
+        assert len(j["inventario"]) == 2
 
     def test_new_game_infinite_propaga_modo_na_masmorra(self):
         data = _nova_sessao("infinite")
@@ -86,6 +87,7 @@ class TestLoja:
         data = _nova_sessao("story")
         sid = data["session_id"]
         state = session_mod.get_session(sid)
+        state.masmorra.jogador.inventario.clear()    # isola dos itens iniciais
         state.loja_ativa = Loja()
         state.masmorra.jogador.moedas = 100
 
@@ -99,7 +101,7 @@ class TestLoja:
             assert "ofertas" in body["loja"]
             for of in body["loja"]["ofertas"]:
                 assert {"nome", "preco", "bonus_atk", "bonus_hp", "bonus_esq"} <= set(of)
-        # item foi para o inventário
+        # item comprado foi para o inventário
         assert len(body["jogador"]["inventario"]) == 1
 
     def test_compra_sem_moedas_falha(self):
@@ -149,6 +151,7 @@ class TestInventario:
         data = _nova_sessao("story")
         sid = data["session_id"]
         jog = session_mod.get_session(sid).masmorra.jogador
+        jog.inventario.clear()                 # isola dos itens iniciais
         jog.hp = 10
         jog.adicionar_item(Item("Poção", bonus_hp=5))
 
@@ -163,6 +166,7 @@ class TestInventario:
     def test_usar_indice_invalido_falha(self):
         data = _nova_sessao("story")
         sid = data["session_id"]
+        session_mod.get_session(sid).masmorra.jogador.inventario.clear()
         r = client.post(f"/game/{sid}/inventory/use", json={"indice": 0})
         assert r.json()["sucesso"] is False
 
@@ -252,3 +256,62 @@ class TestBandoSequencial:
         assert r["resultado"] == "fuga"
         assert state.fila_inimigos == []
         assert state.inimigo_ativo is None
+
+
+# ── Correções do Lote F ───────────────────────────────────────────────────────
+
+class TestCorrecoesLoteF:
+    def test_loot_vai_para_inventario(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        jog = state.masmorra.jogador
+        jog.inventario.clear()
+        jog.atk = 100
+        alvo = Inimigo("Alvo", hp=1, atk=1, dificuldade=1, xp=5, moedas=2)
+        alvo.chance_drop = 1.0                  # dropa sempre
+        state.inimigo_ativo = alvo
+        for _ in range(5):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+            if r["resultado"] in ("vitoria", "derrota"):
+                break
+        assert len(jog.inventario) >= 1          # loot foi pro inventário
+
+    def test_inventario_inicial_tem_dois_itens(self):
+        data = _nova_sessao("infinite")          # vale para qualquer modo
+        assert len(data["jogador"]["inventario"]) == 2
+
+    def test_nosferatu_cura_ao_atacar_com_mensagem(self):
+        from main import _processar_ataque_inimigo
+        from jogo.entidades.inimigo import Nosferatu
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        nosf = Nosferatu()
+        nosf.hp = 5
+        nosf.atk = 10
+        nosf.chance_miss = 0.0                   # garante o acerto
+        state.inimigo_ativo = nosf
+        _, miss, msg = _processar_ataque_inimigo(state, nosf, "")
+        assert miss is False
+        assert nosf.hp > 5                        # se curou
+        assert "drenou" in msg                    # com feedback no log
+
+    def test_boss_final_nao_pode_fugir(self):
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        state.masmorra.andar = state.masmorra.andar_max   # andar 20
+        state.inimigo_ativo = state.masmorra.gerar_boss()
+        state.masmorra.tentar_fuga = lambda inimigo=None: True  # mesmo forçando
+        r = client.post(f"/game/{sid}/combat/flee").json()
+        assert r["resultado"] != "fuga"           # não conseguiu fugir
+        assert state.inimigo_ativo is not None     # boss continua na luta
+
+    def test_boss_intermediario_fuga_fica_mais_dificil(self):
+        # No andar 15 o boss recebe modificador de fuga negativo forte.
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        state.masmorra.andar = 15
+        boss = state.masmorra.gerar_boss()
+        state.inimigo_ativo = boss
+        # tenta fugir uma vez (cai no ramo que ajusta modificador_fuga)
+        client.post(f"/game/{sid}/combat/flee")
+        assert boss.modificador_fuga == -0.15 * (15 // 5)   # -0.45

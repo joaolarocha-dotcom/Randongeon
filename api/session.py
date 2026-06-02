@@ -47,6 +47,14 @@ class GameState:
 _sessions: dict[str, GameState] = {}
 
 
+def _itens_iniciais() -> list[Item]:
+    """Itens básicos que todo herói recebe ao começar uma run (Lote F)."""
+    return [
+        Item("Poção de Cura Pequena", bonus_hp=4),
+        Item("Punhal Gasto",          bonus_atk=1),
+    ]
+
+
 def create_session(
     nome: str,
     modo: str = "story",
@@ -57,6 +65,8 @@ def create_session(
 
     session_id = str(uuid.uuid4())
     jogador    = Jogador(nome)
+    for item in _itens_iniciais():        # Lote F: inventário inicial
+        jogador.adicionar_item(item)
     andar_max  = _ANDAR_MAX_STORY if modo == "story" else None
     masmorra   = Masmorra(jogador, andar_max=andar_max, modo=modo)
     state      = GameState(masmorra=masmorra, modo=modo)

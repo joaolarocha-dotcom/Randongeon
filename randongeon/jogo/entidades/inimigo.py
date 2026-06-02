@@ -3,7 +3,7 @@ from typing import Optional
 
 from jogo.entidades.item import Item
 
-NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Bando de Goblins"]
+NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Aranha Gigante"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
 # ── Pools de loot (Lote C) ────────────────────────────────────────────────────
@@ -287,8 +287,10 @@ class BandoDeGoblins:
         atk    = random.randint(1, 2)
         xp     = random.randint(8, 12)
         moedas = random.randint(2, 4)
+        # Cada goblin se identifica como "Bando de Goblins" (nome distinto do
+        # goblin comum) — assim o jogador sabe que é a horda sequencial.
         self.goblins = [
-            Goblin("Goblin", hp=hp, atk=atk, xp=xp, moedas=moedas)
+            Goblin("Bando de Goblins", hp=hp, atk=atk, xp=xp, moedas=moedas)
             for _ in range(self.TAMANHO)
         ]
 
