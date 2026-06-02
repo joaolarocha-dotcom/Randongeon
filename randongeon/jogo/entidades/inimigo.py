@@ -116,6 +116,66 @@ class Inimigo:
         self.hp = min(self.hp_max, self.hp + quantidade)
         return self.hp - hp_antes
 
+    def atacar(self, alvo) -> dict:
+        """
+        Executa UM turno de ataque deste inimigo contra um alvo.
+
+        Encapsulamento (slide "Encapsulamento") + Abstração: o inimigo é o
+        DONO das suas próprias mecânicas de turno — escalada de ATK, erro
+        (chance_miss), roubo de vida (cura_percentual) e atordoamento
+        (chance_atordoar). Antes, cada laço de combate (automático, CLI e API)
+        repetia esta mesma sequência de regras com getattr(...) defensivo;
+        agora todos chamam inimigo.atacar(alvo) e recebem um relatório.
+
+        Polimorfismo: a mesma chamada serve para qualquer subclasse — Nosferatu
+        rouba vida, Banshee atordoa, comum só bate — porque o comportamento é
+        guiado pelos atributos da instância, sem if por tipo concreto.
+
+        O método NÃO decide nada sobre o estado externo (atordoamento do
+        jogador, logs da tela): apenas aplica o efeito no próprio inimigo e no
+        alvo, e REPORTA o que aconteceu para o chamador agir.
+
+        Parâmetros:
+            alvo: entidade atacada (Jogador). Precisa expor receber_dano(int).
+
+        Retorna:
+            dict: {
+                "dano":      int  — dano efetivo causado ao alvo (0 se errou),
+                "errou":     bool — True se o ataque errou (chance_miss),
+                "curou":     int  — HP recuperado por roubo de vida (lifesteal),
+                "atordoou":  bool — True se atordoou o alvo neste turno,
+                "subiu_atk": int  — quanto o ATK escalou neste turno (0 se nada),
+            }
+
+        Levanta:
+            ValueError: Se alvo for None.
+        """
+        if alvo is None:
+            raise ValueError("Alvo do ataque não pode ser None.")
+
+        # Inimigos que ficam mais fortes a cada turno (ex.: futuros "enrage").
+        subiu_atk = self.bonus_atk_por_turno
+        if subiu_atk > 0:
+            self.atk += subiu_atk
+
+        # Erro: alguns tipos erram muito (Horda) ou quase nunca (Banshee).
+        if random.random() < self.chance_miss:
+            return {"dano": 0, "errou": True, "curou": 0,
+                    "atordoou": False, "subiu_atk": subiu_atk}
+
+        dano = alvo.receber_dano(self.atk)
+
+        # Roubo de vida (Nosferatu): recupera parte do dano causado.
+        curou = 0
+        if self.cura_percentual > 0 and dano > 0:
+            curou = self.curar(max(1, int(dano * self.cura_percentual)))
+
+        # Atordoamento (Banshee): chance de o alvo perder o próximo turno.
+        atordoou = self.chance_atordoar > 0 and random.random() < self.chance_atordoar
+
+        return {"dano": dano, "errou": False, "curou": curou,
+                "atordoou": atordoou, "subiu_atk": subiu_atk}
+
     def tabela_loot(self) -> list:
         """
         Pool de itens que este inimigo pode dropar.

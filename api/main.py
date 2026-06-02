@@ -169,31 +169,24 @@ def _processar_ataque_inimigo(
 ) -> tuple[int, bool, str]:
     jogador = state.masmorra.jogador
 
-    if getattr(inimigo, "bonus_atk_por_turno", 0):
-        inimigo.atk += inimigo.bonus_atk_por_turno
+    # Turno do inimigo centralizado em Inimigo.atacar() (jogo). A API só monta
+    # as mensagens do log e atualiza o estado da sessão (atordoamento).
+    relatorio = inimigo.atacar(jogador)
 
-    miss_inimigo = False
-    dano_inimigo = 0
-
-    if random.random() < getattr(inimigo, "chance_miss", 0.10):
-        miss_inimigo = True
+    if relatorio["errou"]:
         mensagem += f" {inimigo.nome} errou o ataque!"
     else:
-        dano_inimigo = jogador.receber_dano(inimigo.atk)
-        mensagem += f" {inimigo.nome} causou {dano_inimigo} de dano."
+        mensagem += f" {inimigo.nome} causou {relatorio['dano']} de dano."
 
-        # Lifesteal (Nosferatu): cura ao causar dano. Agora com feedback no log.
-        if getattr(inimigo, "cura_percentual", 0) and dano_inimigo > 0:
-            curou = inimigo.curar(max(1, int(dano_inimigo * inimigo.cura_percentual)))
-            if curou > 0:
-                mensagem += f" {inimigo.nome} drenou {curou} de vida!"
+        # Lifesteal (Nosferatu): cura ao causar dano — com feedback no log.
+        if relatorio["curou"] > 0:
+            mensagem += f" {inimigo.nome} drenou {relatorio['curou']} de vida!"
 
-        if getattr(inimigo, "chance_atordoar", 0):
-            if random.random() < inimigo.chance_atordoar:
-                state.jogador_atordoado = True
-                mensagem += f" {jogador.nome} foi atordoado!"
+        if relatorio["atordoou"]:
+            state.jogador_atordoado = True
+            mensagem += f" {jogador.nome} foi atordoado!"
 
-    return dano_inimigo, miss_inimigo, mensagem
+    return relatorio["dano"], relatorio["errou"], mensagem
 
 
 def _checar_vitoria_campanha(
