@@ -6,6 +6,14 @@ from jogo.entidades.item import Item
 NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Aranha Gigante"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
+# ── Escala de inimigos por andar (balanceamento v4 — "config F") ──────────────
+# Comuns e elites ganham bônus de HP/ATK/moedas conforme o andar, para cada andar
+# ser um desafio (antes eram triviais no fim). Calibrado por simulação Monte Carlo.
+ESCALA_HP_POR_ANDAR    = 1.8   # bônus de HP ≈ andar * 1.8
+ESCALA_ATK_DIVISOR     = 5     # +1 de ATK a cada 5 andares
+ESCALA_MOEDAS_DIVISOR  = 2     # +1 de moeda a cada 2 andares
+ELITE_HP_MULTIPLICADOR = 1.4   # elites escalam mais HP que comuns
+
 # ── Pools de loot (Lote C) ────────────────────────────────────────────────────
 # Cada tipo de inimigo tem um pool temático. O pool padrão (LOOT_PADRAO) é usado
 # por inimigos comuns e bosses. As subclasses sobrescrevem tabela_loot() para
@@ -126,6 +134,11 @@ class Inimigo:
         if random.random() < 0.10:
             return HordaDeGoblins()
 
+        # Bônus de escala por andar (balanceamento v4)
+        bonus_hp     = round(andar * ESCALA_HP_POR_ANDAR)
+        bonus_atk    = andar // ESCALA_ATK_DIVISOR
+        bonus_moedas = andar // ESCALA_MOEDAS_DIVISOR
+
         if andar >= 5 and random.random() < 0.25:
             # Thresholds antecipados (Lote C): os especiais aparecem mais cedo,
             # quando o herói ainda é vulnerável — validado por simulação, pois só
@@ -142,18 +155,20 @@ class Inimigo:
                 classe_escolhida = random.choice(pool_especiais)
                 return classe_escolhida()
 
+            # Elite comum (dif 2) — escala mais que o comum.
             nome = random.choice(NOMES_DIFICULDADE_2)
-            hp = random.randint(8, 15)
-            atk = random.randint(3, 5)
+            hp = random.randint(8, 15) + round(bonus_hp * ELITE_HP_MULTIPLICADOR)
+            atk = random.randint(3, 5) + bonus_atk + 1
             xp = random.randint(25, 50)
-            moedas = random.randint(5, 10)
+            moedas = random.randint(5, 10) + bonus_moedas
             return Inimigo(nome, hp, atk, 2, xp, moedas)
 
+        # Comum (dif 1) — escala por andar.
         nome = random.choice(NOMES_DIFICULDADE_1)
-        hp = random.randint(3, 8)
-        atk = random.randint(1, 3)
+        hp = random.randint(3, 8) + bonus_hp
+        atk = random.randint(1, 3) + bonus_atk
         xp = random.randint(10, 20)
-        moedas = random.randint(0, 4)
+        moedas = random.randint(0, 4) + bonus_moedas
         return Inimigo(nome, hp, atk, 1, xp, moedas)
 
     def __repr__(self) -> str:

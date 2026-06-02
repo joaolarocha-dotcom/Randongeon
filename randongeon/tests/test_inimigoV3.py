@@ -315,16 +315,16 @@ class TestCorrecoesV3:
         self, mock_randint, mock_choice, mock_random
     ):
         """
-        Elite exige andar >= 5. horda? 0.11 > 0.10 → não. Elite? 0.11 < 0.25 → sim.
-        Especial? 0.50 >= 0.40 → não → elite comum. side_effect: hp=12, atk=4, xp=40, moedas=8.
+        Elite no andar=5 → elite comum. Balance v4 escala por andar:
+        hp 12 + round(9*1.4)=13 = 25; atk 4 + bonus(1) + 1 = 6; moedas 8 + 2 = 10.
         """
         inimigo = Inimigo.gerar(andar=5)
         assert inimigo.dificuldade == 2
         assert inimigo.nome        == "Orc"
-        assert inimigo.hp          == 12
-        assert inimigo.atk         == 4
+        assert inimigo.hp          == 25
+        assert inimigo.atk         == 6
         assert inimigo.xp          == 40
-        assert inimigo.moedas      == 8
+        assert inimigo.moedas      == 10
 
     @patch("jogo.entidades.inimigo.random.random", return_value=0.11)
     def test_elite_nao_aparece_antes_do_andar_5(self, mock_random):
@@ -362,7 +362,7 @@ class TestCorrecoesV3:
         """
         for _ in range(30):
             i = Inimigo.gerar(andar=5)
-            assert 5 <= i.moedas <= 10, f"moedas={i.moedas} fora do range 5-10"
+            assert 7 <= i.moedas <= 12, f"moedas={i.moedas} fora do range 7-12"  # +bonus 2
 
     def test_inimigos_dif2_tem_moedas_maiores_que_dif1_em_media_corrigido(self):
         """
