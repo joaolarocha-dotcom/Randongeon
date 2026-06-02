@@ -57,7 +57,8 @@ export type Screen =
   | "combat"
   | "chest"
   | "shop"
-  | "game_over";
+  | "game_over"
+  | "victory";
 
 interface CombatLog {
   mensagem: string;
@@ -97,6 +98,7 @@ interface GameStore {
   combatLog: CombatLog[];
   descricaoSala: string;
   gameOverMsg: string;
+  victoryMsg: string;
   loading: boolean;
   error: string | null;
 
@@ -164,6 +166,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   combatLog: [],
   descricaoSala: "",
   gameOverMsg: "",
+  victoryMsg: "",
   loading: false,
   error: null,
 
@@ -486,6 +489,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combatLog: [],
       descricaoSala: "",
       gameOverMsg: "",
+      victoryMsg: "",
       loading: false,
       error: null,
       animPhase: "idle",
@@ -622,7 +626,16 @@ function handleCombatResult(
   const mensagens = splitMensagem(res.mensagem);
 
   // Resolução final
-  if (res.resultado === "vitoria") {
+  if (res.resultado === "vitoria_campanha") {
+    // Lote G: boss final do andar 20 derrotado → tela de vitória da campanha.
+    set({ animPhase: "victory", victoryMsg: res.mensagem });
+    appendDialog(set, get, mensagens);
+    audio.playSfx("sfx_enemy_defeat");
+    scheduleTimeout(() => {
+      set({ screen: "victory", animPhase: "idle", currentDialog: null, dialogQueue: [] });
+      audio.playJingle("bgm_victory");
+    }, 4000);
+  } else if (res.resultado === "vitoria") {
     const xpGanho = jogadorAtualizado.xp - (get().lastXpSnapshot ?? 0);
     if (xpGanho > 0) mensagens.push(`${jogadorAtualizado.nome} ganhou ${xpGanho} de XP!`);
     set({ animPhase: "victory" });
