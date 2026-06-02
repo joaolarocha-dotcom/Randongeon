@@ -390,9 +390,14 @@ class TestBandoDeGoblins:
 
     def test_goblins_sao_identicos(self):
         fila = BandoDeGoblins().fila()
-        # mesmo nome e mesmas stats entre os 3 (usam um único sprite "Goblin")
-        assert all(g.nome == "Goblin" for g in fila)
+        # mesmo nome "Bando de Goblins" e mesmas stats (um único sprite)
+        assert all(g.nome == "Bando de Goblins" for g in fila)
         assert len({(g.hp, g.atk, g.xp, g.moedas) for g in fila}) == 1
+
+    def test_nome_bando_distinto_do_goblin_comum(self):
+        from jogo.entidades.inimigo import NOMES_DIFICULDADE_1
+        # "Bando de Goblins" saiu da lista de comuns (evita colisão)
+        assert "Bando de Goblins" not in NOMES_DIFICULDADE_1
 
     def test_goblins_sao_fracos_dif1(self):
         for g in BandoDeGoblins().fila():

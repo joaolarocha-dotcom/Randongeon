@@ -180,8 +180,11 @@ def _processar_ataque_inimigo(
         dano_inimigo = jogador.receber_dano(inimigo.atk)
         mensagem += f" {inimigo.nome} causou {dano_inimigo} de dano."
 
-        if getattr(inimigo, "cura_percentual", 0):
-            inimigo.curar(max(1, int(dano_inimigo * inimigo.cura_percentual)))
+        # Lifesteal (Nosferatu): cura ao causar dano. Agora com feedback no log.
+        if getattr(inimigo, "cura_percentual", 0) and dano_inimigo > 0:
+            curou = inimigo.curar(max(1, int(dano_inimigo * inimigo.cura_percentual)))
+            if curou > 0:
+                mensagem += f" {inimigo.nome} drenou {curou} de vida!"
 
         if getattr(inimigo, "chance_atordoar", 0):
             if random.random() < inimigo.chance_atordoar:
@@ -381,7 +384,8 @@ def _resolver_derrota_inimigo(
     jogador.ganhar_moedas(inimigo.moedas)
     loot_drop = _rolar_loot(inimigo)
     if loot_drop:
-        state.masmorra.aplicar_item(loot_drop)
+        jogador.adicionar_item(loot_drop)        # Lote F: loot vai pro inventário
+        mensagem += f" ✨ {loot_drop.nome} caiu no chão!"
     mensagem += f" {inimigo.nome} foi derrotado!"
 
     # Ainda há goblins na fila do bando? → próximo inimigo
@@ -443,8 +447,9 @@ def combat_attack(session_id: str):
     else:
         dano_jogador = inimigo.receber_dano(jogador.atk)
         mensagem = f"Você causou {dano_jogador} de dano."
-        if getattr(inimigo, "cura_percentual", 0):
-            inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
+        # Lote F: REMOVIDO o heal aqui — o Nosferatu não deve se curar quando
+        # APANHA. O lifesteal correto está em _processar_ataque_inimigo (cura
+        # quando o inimigo ataca o jogador).
 
     if inimigo.hp <= 0:
         return _resolver_derrota_inimigo(
@@ -512,8 +517,7 @@ def combat_dodge(session_id: str):
         else:
             dano_jogador = inimigo.receber_dano(jogador.atk)
             mensagem += f" Contra-atacou por {dano_jogador} de dano."
-            if getattr(inimigo, "cura_percentual", 0):
-                inimigo.curar(max(1, int(dano_jogador * inimigo.cura_percentual)))
+            # Lote F: REMOVIDO o heal aqui (vampiro não cura ao apanhar).
 
         if inimigo.hp <= 0:
             return _resolver_derrota_inimigo(
@@ -573,6 +577,37 @@ def combat_flee(session_id: str):
 
     if inimigo is None:
         raise HTTPException(status_code=400, detail="Sem inimigo ativo")
+
+    # Lote F: fuga de boss na campanha. A cada boss a fuga fica mais difícil;
+    # no andar final (20), fugir é IMPOSSÍVEL — vencer ou morrer.
+    andar     = state.masmorra.andar
+    andar_max = state.masmorra.andar_max
+    if state.modo == "story" and inimigo.dificuldade == 3:
+        if andar_max and andar >= andar_max:
+            mensagem = "Não há para onde fugir! O Coração da Masmorra bloqueia a saída!"
+            dano_inimigo, miss_inimigo, mensagem = _processar_ataque_inimigo(
+                state, inimigo, mensagem
+            )
+            if jogador.hp <= 0:
+                delete_session(session_id)
+                return CombatActionResponse(
+                    resultado="derrota",
+                    mensagem=mensagem + " Você foi derrotado...",
+                    dano_jogador=0, dano_inimigo=dano_inimigo,
+                    jogador=_jogador_status(state),
+                    miss_inimigo=miss_inimigo,
+                )
+            return CombatActionResponse(
+                resultado="continua",
+                mensagem=mensagem,
+                dano_jogador=0, dano_inimigo=dano_inimigo,
+                jogador=_jogador_status(state),
+                inimigo=_inimigo_info(inimigo),
+                jogador_atordoado=state.jogador_atordoado,
+                miss_inimigo=miss_inimigo,
+            )
+        # Bosses intermediários: chance de fuga cai conforme o andar.
+        inimigo.modificador_fuga = -0.15 * (andar // 5)
 
     if state.masmorra.tentar_fuga(inimigo):
         state.inimigo_ativo = None
