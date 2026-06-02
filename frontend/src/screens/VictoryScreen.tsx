@@ -1,23 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "../store/gameStore";
 import { PLAYER_SPRITE, FALLBACK_SPRITE_PATH } from "../assets/spriteMap";
 import { audio } from "../components/audio/AudioEngine";
+import { recordScore } from "../services/leaderboard";
 
 /**
  * Tela de vitória da campanha (Lote G).
  * Disparada quando o backend retorna resultado="vitoria_campanha" (boss final
- * do andar 20 derrotado). Mostra o herói, os status finais e a pontuação.
+ * do andar 20 derrotado). Mostra o herói, os status finais, a pontuação e o
+ * score da run (Lote H), registrando-a no placar.
  */
 export function VictoryScreen() {
-  const { jogador, victoryMsg, reset } = useGameStore();
+  const { jogador, victoryMsg, reset, modo } = useGameStore();
   const [playerSrc, setPlayerSrc] = useState(PLAYER_SPRITE.src);
+  const [novoRecorde, setNovoRecorde] = useState(false);
+  const registrado = useRef(false);
 
   useEffect(() => {
     audio.playJingle("bgm_victory");
+    if (!registrado.current && jogador) {
+      registrado.current = true;
+      const r = recordScore({
+        nome: jogador.nome,
+        score: jogador.score,
+        andar: jogador.andar,
+        modo,
+        data: new Date().toISOString(),
+      });
+      setNovoRecorde(r.novoRecorde);
+    }
     return () => {
       audio.stopMusic();
     };
-  }, []);
+  }, [jogador, modo]);
 
   return (
     <div
@@ -73,8 +88,14 @@ export function VictoryScreen() {
           <p>Nível: {jogador.nivel}</p>
           <p>XP total: {jogador.xp}</p>
           <p style={{ color: "#d8a000" }}>Moedas: {jogador.moedas}</p>
-          <p style={{ color: "#1a7f3c" }}>Pontuação: {jogador.pontuacao}</p>
+          <p style={{ color: "#1a7f3c" }}>PONTUAÇÃO (score): {jogador.score}</p>
         </div>
+      )}
+
+      {novoRecorde && (
+        <p style={{ fontSize: "var(--font-size-sm)", color: "#ffd84d", textShadow: "1px 1px 0 #a06000" }}>
+          🏆 NOVO RECORDE!
+        </p>
       )}
 
       <button

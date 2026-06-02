@@ -107,6 +107,7 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         xp=j.xp,
         nivel=getattr(j, "nivel", 1),    # ← Lote D: nível real (Lote A)
         pontuacao=getattr(j, "pontuacao", 0),  # ← Lote G
+        score=state.masmorra.calcular_score(),  # ← Lote H: score da run
         moedas=j.moedas,
         andar=state.masmorra.andar,      # ← novo Lote 2A
         inventario=inventario,            # ← novo Lote 2A

@@ -534,3 +534,23 @@ class TestModoCampanha:
     def test_andar_max_nao_afeta_gerador(self, jogador_padrao):
         m = Masmorra(jogador_padrao, andar_max=20)
         assert isinstance(m.gerador, GeradorSala)
+
+class TestCalcularScore:
+    """Lote H: score da run = jogador.pontuacao + andar * 100."""
+
+    def test_score_inicial_e_zero(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)              # andar 0, pontuacao 0
+        assert m.calcular_score() == 0
+
+    def test_score_combina_pontuacao_e_andar(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)
+        m.andar = 7
+        jogador_padrao.ganhar_moedas(30)
+        assert m.calcular_score() == jogador_padrao.pontuacao + 700
+
+    def test_andar_mais_fundo_da_score_maior(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)
+        m.andar = 3
+        score_raso = m.calcular_score()
+        m.andar = 12
+        assert m.calcular_score() > score_raso

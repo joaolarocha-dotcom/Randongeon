@@ -30,6 +30,7 @@ export interface JogadorStatus {
   xp: number;
   nivel: number;
   pontuacao: number;
+  score: number;
   moedas: number;
   andar: number;
   inventario: ItemInventario[];

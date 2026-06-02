@@ -345,3 +345,12 @@ class TestVitoriaCampanha:
         r = client.get(f"/game/{sid}/status").json()
         assert "pontuacao" in r["jogador"]
         assert r["jogador"]["pontuacao"] == jog.pontuacao
+
+    def test_status_inclui_score_com_andar(self):
+        sid = _nova_sessao("infinite")["session_id"]
+        state = session_mod.get_session(sid)
+        state.masmorra.andar = 5
+        r = client.get(f"/game/{sid}/status").json()
+        # score = pontuacao + andar*100
+        assert r["jogador"]["score"] == state.masmorra.calcular_score()
+        assert r["jogador"]["score"] >= 500   # pelo menos o bônus do andar 5
