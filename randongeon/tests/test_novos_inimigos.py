@@ -403,3 +403,68 @@ class TestBandoDeGoblins:
         for g in BandoDeGoblins().fila():
             assert g.dificuldade == 1
             assert g.hp <= 9
+
+
+class TestAtacar:
+    """
+    Lote I: Inimigo.atacar(alvo) centraliza o turno de ataque do inimigo.
+
+    Encapsulamento: o inimigo é dono das próprias regras (miss, lifesteal,
+    atordoamento, escala de ATK). Polimorfismo: a mesma chamada serve para
+    qualquer subclasse, guiada pelos atributos da instância.
+    """
+
+    def test_alvo_none_levanta_value_error(self):
+        comum = Inimigo("Goblin", hp=5, atk=3, dificuldade=1, xp=10, moedas=2)
+        with pytest.raises(ValueError):
+            comum.atacar(None)
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.99)
+    def test_acerto_causa_dano(self, _rand):
+        comum = Inimigo("Goblin", hp=5, atk=4, dificuldade=1, xp=10, moedas=2)
+        alvo = Jogador("Herói", hp=20, atk=5)
+        rel = comum.atacar(alvo)
+        assert rel["errou"] is False
+        assert rel["dano"] == 4
+        assert alvo.hp == 16
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.05)
+    def test_erro_nao_causa_dano(self, _rand):
+        # chance_miss padrão = 0.10; random 0.05 < 0.10 → erra.
+        comum = Inimigo("Goblin", hp=5, atk=4, dificuldade=1, xp=10, moedas=2)
+        alvo = Jogador("Herói", hp=20, atk=5)
+        rel = comum.atacar(alvo)
+        assert rel["errou"] is True
+        assert rel["dano"] == 0
+        assert alvo.hp == 20
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.5)
+    def test_nosferatu_rouba_vida_ao_acertar(self, _rand):
+        nosf = Nosferatu()
+        nosf.hp = 1                       # espaço para curar
+        nosf.atk = 10
+        alvo = Jogador("Herói", hp=100, atk=5)
+        rel = nosf.atacar(alvo)
+        assert rel["errou"] is False
+        assert rel["curou"] > 0           # roubou vida
+        assert nosf.hp > 1
+
+    @patch("jogo.entidades.inimigo.random.random", side_effect=[0.5, 0.1])
+    def test_banshee_atordoa_ao_acertar(self, _rand):
+        # 1º roll (0.5) > chance_miss(0.05) → acerta; 2º roll (0.1) < 0.30 → atordoa.
+        banshee = Banshee()
+        alvo = Jogador("Herói", hp=100, atk=5)
+        rel = banshee.atacar(alvo)
+        assert rel["errou"] is False
+        assert rel["atordoou"] is True
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.99)
+    def test_escala_atk_por_turno(self, _rand):
+        inimigo = Inimigo(
+            "Enrage", hp=10, atk=5, dificuldade=2, xp=10, moedas=2,
+            bonus_atk_por_turno=2,
+        )
+        alvo = Jogador("Herói", hp=100, atk=5)
+        rel = inimigo.atacar(alvo)
+        assert rel["subiu_atk"] == 2
+        assert inimigo.atk == 7           # 5 + 2

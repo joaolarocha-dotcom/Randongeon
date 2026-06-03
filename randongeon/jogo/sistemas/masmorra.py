@@ -109,24 +109,11 @@ class Masmorra:
                 jogador_atordoado = False
 
             if inimigo.esta_vivo():
-                if getattr(inimigo, 'bonus_atk_por_turno', 0) > 0:
-                    inimigo.atk += inimigo.bonus_atk_por_turno
-
-                if getattr(inimigo, 'chance_miss', 0) > 0:
-                    if not random.random() < inimigo.chance_miss:
-                        dano_causado = self.jogador.receber_dano(inimigo.atk)
-                    else:
-                        dano_causado = 0
-                else:
-                    dano_causado = self.jogador.receber_dano(inimigo.atk)
-
-                if getattr(inimigo, 'cura_percentual', 0) > 0 and dano_causado > 0:
-                    cura = max(1, int(dano_causado * inimigo.cura_percentual))
-                    inimigo.curar(cura)
-
-                if getattr(inimigo, 'chance_atordoar', 0) > 0:
-                    if random.random() < inimigo.chance_atordoar:
-                        jogador_atordoado = True
+                # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
+                # vive em Inimigo.atacar(). Aqui só reagimos ao relatório.
+                relatorio = inimigo.atacar(self.jogador)
+                if relatorio["atordoou"]:
+                    jogador_atordoado = True
 
         if not self.jogador.esta_vivo():
             return "derrota"
@@ -303,45 +290,39 @@ class Masmorra:
                     continue
 
             if inimigo.esta_vivo():
-                if getattr(inimigo, 'bonus_atk_por_turno', 0) > 0:
-                    inimigo.atk += inimigo.bonus_atk_por_turno
+                # Turno do inimigo centralizado em Inimigo.atacar(); aqui só
+                # narramos o relatório na tela.
+                relatorio = inimigo.atacar(self.jogador)
+
+                if relatorio["subiu_atk"] > 0:
                     print(
                         f"O {inimigo.nome} ficou mais forte! "
                         f"ATK aumentou para {inimigo.atk}!\n"
                     )
                     time.sleep(0.3)
 
-                if getattr(inimigo, 'chance_miss', 0) > 0:
-                    if not random.random() < inimigo.chance_miss:
-                        dano_causado = self.jogador.receber_dano(inimigo.atk)
-                        print(f"{inimigo.nome} causou {dano_causado} de dano em você.\n")
-                    else:
-                        dano_causado = 0
-                        print(f"{inimigo.nome} tentou atacar, mas errou!\n")
+                if relatorio["errou"]:
+                    print(f"{inimigo.nome} tentou atacar, mas errou!\n")
                 else:
-                    dano_causado = self.jogador.receber_dano(inimigo.atk)
-                    print(f"{inimigo.nome} causou {dano_causado} de dano em você.\n")
-                    
+                    print(f"{inimigo.nome} causou {relatorio['dano']} de dano em você.\n")
+
                 time.sleep(0.2)
 
-                if getattr(inimigo, 'cura_percentual', 0) > 0 and dano_causado > 0:
-                    cura = max(1, int(dano_causado * inimigo.cura_percentual))
-                    inimigo.curar(cura)
+                if relatorio["curou"] > 0:
                     print(
                         f"O {inimigo.nome} absorveu sua energia "
-                        f"vital e se curou em {cura} HP! "
+                        f"vital e se curou em {relatorio['curou']} HP! "
                         f"(HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)})\n"
                     )
                     time.sleep(0.3)
 
-                if getattr(inimigo, 'chance_atordoar', 0) > 0:
-                    if random.random() < inimigo.chance_atordoar:
-                        jogador_atordoado = True
-                        print(
-                            "O grito da Banshee ecoa dentro do seu crânio... "
-                            "Você será ATORDOADO no próximo turno!\n"
-                        )
-                        time.sleep(0.4)
+                if relatorio["atordoou"]:
+                    jogador_atordoado = True
+                    print(
+                        "O grito da Banshee ecoa dentro do seu crânio... "
+                        "Você será ATORDOADO no próximo turno!\n"
+                    )
+                    time.sleep(0.4)
 
         if not self.jogador.esta_vivo():
             return "derrota"
