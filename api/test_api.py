@@ -203,6 +203,20 @@ class TestSaveLoad:
         nomes = [it["nome"] for it in load["jogador"]["inventario"]]
         assert "Relíquia" in nomes
 
+    def test_save_load_round_trip_preserva_veneno(self):
+        # Lote save: o veneno em andamento deve sobreviver ao save/load (.txt).
+        data = _nova_sessao("story")
+        sid = data["session_id"]
+        jog = session_mod.get_session(sid).masmorra.jogador
+        jog.envenenar()                       # veneno_turnos = VENENO_DURACAO
+        save = client.get(f"/game/{sid}/save").json()
+        assert save["jogador"]["veneno_turnos"] == jog.veneno_turnos
+
+        load = client.post("/game/load", json=save).json()
+        novo_sid = load["session_id"]
+        jl = session_mod.get_session(novo_sid).masmorra.jogador
+        assert jl.veneno_turnos == jog.veneno_turnos
+
 
 # ── Bando de Goblins: combate sequencial (Lote E) ─────────────────────────────
 
