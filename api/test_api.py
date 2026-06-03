@@ -374,16 +374,25 @@ class TestCorrecoesLoteF:
 # ── Vitória de campanha + pontuação (Lote G) ──────────────────────────────────
 
 class TestVitoriaCampanha:
-    def test_derrotar_boss_andar_20_retorna_vitoria_campanha(self):
+    def test_boss_andar_20_renasce_uma_vez_e_so_a_2a_morte_vence(self):
+        """Lote 4: o Coração da Masmorra tem 2 fases — a 1ª morte o faz renascer
+        a 50% e em fúria; só a 2ª morte dispara a vitória de campanha."""
         sid = _nova_sessao("story")["session_id"]
         state = session_mod.get_session(sid)
         jog = state.masmorra.jogador
         jog.atk = 1000
+        jog.hp = jog.hp_max = 10000        # blinda contra o contra-ataque em fúria
         state.masmorra.andar = state.masmorra.andar_max   # andar 20
         boss = state.masmorra.gerar_boss()
         boss.hp = 1
         state.inimigo_ativo = boss
 
+        # 1ª morte → renasce (NÃO vence a campanha ainda) e volta a 50% do HP máx.
+        r1 = client.post(f"/game/{sid}/combat/attack").json()
+        assert r1["resultado"] == "renasceu"
+        assert r1["inimigo"]["hp"] == round(boss.hp_max * 0.50)
+
+        # 2ª morte → agora sim a campanha é vencida.
         resultado = "continua"
         for _ in range(5):
             r = client.post(f"/game/{sid}/combat/attack").json()

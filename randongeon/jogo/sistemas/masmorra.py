@@ -4,7 +4,7 @@ from typing import Optional
 
 from jogo.entidades.jogador import Jogador
 from jogo.entidades.inimigo import (
-    Inimigo, LOOT_PADRAO,
+    Inimigo, CoracaoDaMasmorra, LOOT_PADRAO, MENSAGEM_RENASCIMENTO,
     mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
 )
 from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
@@ -105,35 +105,45 @@ class Masmorra:
 
         jogador_atordoado = False
 
-        while self.jogador.esta_vivo() and inimigo.esta_vivo():
-            if not jogador_atordoado:
-                if not random.random() < CHANCE_MISS_JOGADOR:
-                    if not inimigo.tentar_esquivar():      # Lote 2: inimigo pode desviar
-                        dano_base, _ = self.jogador.rolar_dano()
-                        dano = inimigo.receber_dano(dano_base)
-                        self.jogador.aplicar_lifesteal(dano)   # dom Sanguessuga (Lote 3)
-            else:
+        # Laço externo (Lote 4): repete a luta quando um boss de 2ª fase renasce.
+        # Para inimigos comuns, tentar_renascer() devolve False e roda uma vez só.
+        while True:
+            while self.jogador.esta_vivo() and inimigo.esta_vivo():
+                if not jogador_atordoado:
+                    if not random.random() < CHANCE_MISS_JOGADOR:
+                        if not inimigo.tentar_esquivar():      # Lote 2: inimigo pode desviar
+                            dano_base, _ = self.jogador.rolar_dano()
+                            dano = inimigo.receber_dano(dano_base)
+                            self.jogador.aplicar_lifesteal(dano)   # dom Sanguessuga (Lote 3)
+                else:
+                    jogador_atordoado = False
+
+                if inimigo.esta_vivo():
+                    # Efeitos de status (veneno) agem no início da troca (Lote M/B2).
+                    self.jogador.processar_efeitos_turno()
+                    if not self.jogador.esta_vivo():
+                        break
+                    # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
+                    # vive em Inimigo.atacar(). Aqui só reagimos ao relatório.
+                    relatorio = inimigo.atacar(self.jogador)
+                    if relatorio["atordoou"]:
+                        jogador_atordoado = True
+                    if relatorio["envenenou"]:
+                        self.jogador.envenenar()
+                    if relatorio.get("fraqueza"):
+                        self.jogador.aplicar_efeito(Fraqueza(2))
+                    if relatorio.get("esquiva_reduzida"):
+                        self.jogador.aplicar_efeito(EsquivaReduzida(1))
+
+            if not self.jogador.esta_vivo():
+                return "derrota"
+
+            # Boss de 2ª fase (Coração): renasce 1x e a luta recomeça em fúria.
+            if inimigo.tentar_renascer():
+                print(MENSAGEM_RENASCIMENTO)
                 jogador_atordoado = False
-
-            if inimigo.esta_vivo():
-                # Efeitos de status (veneno) agem no início da troca (Lote M/B2).
-                self.jogador.processar_efeitos_turno()
-                if not self.jogador.esta_vivo():
-                    break
-                # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
-                # vive em Inimigo.atacar(). Aqui só reagimos ao relatório.
-                relatorio = inimigo.atacar(self.jogador)
-                if relatorio["atordoou"]:
-                    jogador_atordoado = True
-                if relatorio["envenenou"]:
-                    self.jogador.envenenar()
-                if relatorio.get("fraqueza"):
-                    self.jogador.aplicar_efeito(Fraqueza(2))
-                if relatorio.get("esquiva_reduzida"):
-                    self.jogador.aplicar_efeito(EsquivaReduzida(1))
-
-        if not self.jogador.esta_vivo():
-            return "derrota"
+                continue
+            break
 
         self.jogador.ganhar_xp(inimigo.xp)
         self.jogador.ganhar_moedas(inimigo.moedas)
@@ -169,6 +179,12 @@ class Masmorra:
         xp     = 80 + (fator * 40)
         moedas = 25 + (fator * 8)
         nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")
+
+        # Lote 4: o boss final da campanha tem 2ª fase (renasce 1x). É um Inimigo
+        # (isinstance vale; stats idênticas às travadas por teste) — só troca a
+        # classe concreta para habilitar o hook tentar_renascer().
+        if nome == "Coração da Masmorra":
+            return CoracaoDaMasmorra(hp=hp, atk=atk, xp=xp, moedas=moedas)
 
         return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas)
 

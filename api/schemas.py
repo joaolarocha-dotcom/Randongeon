@@ -121,7 +121,7 @@ class SalaResponse(BaseModel):
 
 
 class CombatActionResponse(BaseModel):
-    resultado:         str               # "continua"|"vitoria"|"derrota"|"fuga"|"vitoria_campanha"
+    resultado:         str               # "continua"|"vitoria"|"derrota"|"fuga"|"vitoria_campanha"|"proximo"|"renasceu"
     mensagem:          str
     dano_jogador:      int  = 0
     dano_inimigo:      int  = 0
