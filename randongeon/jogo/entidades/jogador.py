@@ -6,8 +6,10 @@ Define a classe Jogador com todos os atributos, validações e comportamentos
 necessários para o funcionamento do RPG e para a cobertura de testes unitários.
 """
 
+from jogo.entidades.entidade import Entidade
 
-class Jogador:
+
+class Jogador(Entidade):
     """
     Representa o personagem controlado pelo jogador.
 
@@ -43,10 +45,8 @@ class Jogador:
         Levanta:
             ValueError: Se nome for vazio/None, hp <= 0, atk <= 0 ou xp < 0.
         """
-        if not isinstance(nome, str) or not nome.strip():
-            raise ValueError("Nome do jogador deve ser uma string não vazia.")
-        if hp <= 0:
-            raise ValueError("HP inicial deve ser maior que zero.")
+        # Base (Entidade): valida nome/hp e define nome, hp_max e hp.
+        super().__init__(nome, hp)
         if atk <= 0:
             raise ValueError("ATK inicial deve ser maior que zero.")
         if xp < 0:
@@ -54,9 +54,6 @@ class Jogador:
         if esq < 0:
             raise ValueError("ESQUIVA inicial não pode ser negativa")
 
-        self.nome   = nome
-        self.hp_max = hp
-        self.hp     = hp
         self.atk    = atk
         self.xp     = xp
         self.nivel  = 1          # todo herói começa no nível 1
@@ -66,16 +63,7 @@ class Jogador:
         self.inventario: list = []
         self.veneno_turnos = 0   # turnos de veneno restantes (Lote M)
 
-    # ── Vida ──────────────────────────────────────────────────────────────────
-
-    def esta_vivo(self) -> bool:
-        """
-        Verifica se o jogador ainda está vivo.
-
-        Retorna:
-            bool: True se hp > 0, False caso contrário.
-        """
-        return self.hp > 0
+    # ── Vida (esta_vivo e curar são herdados de Entidade) ───────────────────────
 
     def receber_dano(self, dano: int) -> int:
         """
@@ -97,26 +85,6 @@ class Jogador:
         self.hp -= dano_efetivo
         return dano_efetivo
 
-    def curar(self, quantidade: int) -> int:
-        """
-        Restaura HP do jogador sem ultrapassar o HP máximo.
-
-        Parâmetros:
-            quantidade (int): Quantidade de HP a restaurar. Deve ser >= 0.
-
-        Retorna:
-            int: HP efetivamente recuperado.
-
-        Levanta:
-            ValueError: Se quantidade for negativa.
-        """
-        if quantidade < 0:
-            raise ValueError("Quantidade de cura não pode ser negativa.")
-
-        hp_antes = self.hp
-        self.hp  = min(self.hp_max, self.hp + quantidade)
-        return self.hp - hp_antes
-    
     def aumenta_esq(self, quantidade: int) -> int:
         """
         Restaura ESQ do jogador sem ultrapassar a ESQ máxima.
