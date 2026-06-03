@@ -3,7 +3,12 @@ from typing import Optional
 
 from jogo.entidades.item import Item
 
-NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante", "Aranha Gigante"]
+# "Aranha Gigante" foi removida: era um resquício do Lote F (o nome do Bando de
+# Goblins foi renomeado por engano para "Aranha Gigante" ao sair desta lista) e
+# nunca teve sprite próprio — aparecia com o sprite do goblin, quebrando a
+# imersão. O inimigo de "grupo" correto é o Bando de Goblins, que já existe como
+# encontro especial próprio (HordaDeGoblins → BandoDeGoblins).
+NOMES_DIFICULDADE_1 = ["Goblin", "Rato Gigante"]
 NOMES_DIFICULDADE_2 = ["Esqueleto Guerreiro", "Orc", "Troll das Cavernas"]
 
 # ── Escala de inimigos por andar (balanceamento v4 — "config F") ──────────────
