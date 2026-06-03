@@ -7,6 +7,7 @@ necessários para o funcionamento do RPG e para a cobertura de testes unitários
 """
 
 from jogo.entidades.entidade import Entidade
+from jogo.entidades.efeitos import Veneno
 
 
 class Jogador(Entidade):
@@ -61,7 +62,7 @@ class Jogador(Entidade):
         self.esq_max = 1
         self.moedas = moedas
         self.inventario: list = []
-        self.veneno_turnos = 0   # turnos de veneno restantes (Lote M)
+        # veneno_turnos agora é uma @property derivada dos efeitos (Lote B2).
 
     # ── Vida (esta_vivo e curar são herdados de Entidade) ───────────────────────
 
@@ -153,11 +154,17 @@ class Jogador(Entidade):
             self.hp_max += self.HP_POR_NIVEL
             self.hp      = self.hp_max                       # cura total ao subir
             self.esq     = min(self.ESQ_MAXIMA, self.esq + self.ESQ_POR_NIVEL)
-            self.veneno_turnos = 0                           # subir de nível purga o veneno (Lote M)
+            self.remover_efeitos(apenas_ao_curar=True)       # subir de nível purga veneno (Lote M/B2)
             niveis_ganhos += 1
         return niveis_ganhos
 
-    # ── Veneno (DoT — Lote M) ───────────────────────────────────────────────────
+    # ── Status (Lote B2: veneno migrado para o sistema de EfeitoStatus) ─────────
+
+    @property
+    def veneno_turnos(self) -> int:
+        """Turnos de veneno restantes — derivado do efeito ativo."""
+        efeito = self.buscar_efeito("veneno")
+        return efeito.turnos if efeito else 0
 
     @property
     def envenenado(self) -> bool:
@@ -166,33 +173,43 @@ class Jogador(Entidade):
 
     def envenenar(self, turnos: int = None) -> None:
         """
-        Aplica (ou renova) o veneno. Não acumula além de VENENO_DURACAO: uma nova
-        picada apenas RENOVA a duração para o teto, em vez de empilhar dano.
-
-        O estado vive no jogador (não no combate), então PERSISTE entre andares
-        até os turnos se esgotarem ou o jogador se curar.
+        Aplica (ou renova) o veneno como um EfeitoStatus. Não acumula além de
+        VENENO_DURACAO: uma nova picada apenas RENOVA a duração para o teto.
+        O estado vive no jogador, então PERSISTE entre andares.
         """
         if turnos is None:
             turnos = self.VENENO_DURACAO
         if turnos < 0:
             raise ValueError("Duração de veneno não pode ser negativa.")
-        self.veneno_turnos = max(self.veneno_turnos, min(turnos, self.VENENO_DURACAO))
+        self.aplicar_efeito(Veneno(min(turnos, self.VENENO_DURACAO)))
 
     def curar_veneno(self) -> None:
-        """Remove o veneno (usado por poções de cura e ao subir de nível)."""
-        self.veneno_turnos = 0
+        """Remove o veneno (poções de cura e level-up); demais debuffs expiram sozinhos."""
+        self.remover_efeitos(apenas_ao_curar=True)
 
     def tick_veneno(self) -> int:
         """
-        Processa um turno de veneno: causa 1 de dano e consome 1 turno.
-
-        Retorna:
-            int: dano sofrido pelo veneno neste turno (0 se não estava envenenado).
+        Processa um turno de efeitos e devolve o dano de veneno (DoT) sofrido.
+        Mantido com este nome por compatibilidade com os laços de combate/testes;
+        internamente processa TODOS os efeitos ativos.
         """
-        if self.veneno_turnos <= 0:
-            return 0
-        self.veneno_turnos -= 1
-        return self.receber_dano(1)
+        return self.processar_efeitos_turno()
+
+    # ── Stats efetivos (após efeitos de status) ─────────────────────────────────
+
+    def atk_efetivo(self) -> int:
+        """ATK considerando efeitos ativos (ex.: Fraqueza reduz)."""
+        atk = self.atk
+        for efeito in self.efeitos:
+            atk = efeito.modifica_atk(atk)
+        return atk
+
+    def esquiva_efetiva(self) -> float:
+        """Esquiva considerando efeitos ativos (ex.: EsquivaReduzida do Troll)."""
+        esq = self.esq
+        for efeito in self.efeitos:
+            esq = efeito.modifica_esquiva(esq)
+        return esq
 
     # ── Pontuação (comparativo de competição) ─────────────────────────────────
 

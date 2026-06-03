@@ -53,6 +53,14 @@ def ratio_especial(andar: int) -> float:
 CHANCE_VENENO = 0.08
 NOMES_PODEM_ENVENENAR = ("Goblin", "Rato Gigante")
 
+# ── Debuffs de elite (Lote B2) ────────────────────────────────────────────────
+# Orc → Fraqueza (−ATK); Troll das Cavernas → reduz a esquiva (golpe de maça).
+# Chances por acerto (a calibrar na próxima rodada de balanceamento).
+CHANCE_FRAQUEZA        = 0.30
+CHANCE_ESQUIVA_DEBUFF  = 0.35
+NOMES_APLICAM_FRAQUEZA       = ("Orc",)
+NOMES_APLICAM_ESQUIVA_DEBUFF = ("Troll das Cavernas",)
+
 # Flavor da picada de veneno, por inimigo (Lote 2 de textos). Mantido junto da
 # definição dos inimigos para API e CLI usarem a MESMA mensagem.
 MENSAGENS_VENENO = {
@@ -67,6 +75,18 @@ MENSAGEM_VENENO_PADRAO = "Você foi ENVENENADO!"
 def mensagem_veneno(nome_inimigo: str) -> str:
     """Texto temático de envenenamento conforme o inimigo (Goblin/Rato Gigante)."""
     return MENSAGENS_VENENO.get(nome_inimigo, MENSAGEM_VENENO_PADRAO)
+
+
+def mensagem_fraqueza(nome_inimigo: str) -> str:
+    """Texto do debuff de fraqueza (Orc)."""
+    return (f"O {nome_inimigo} desfere um golpe brutal que abala seus músculos — "
+            f"você fica ENFRAQUECIDO (ATK reduzido por alguns turnos)!")
+
+
+def mensagem_esquiva_reduzida(nome_inimigo: str) -> str:
+    """Texto do debuff de esquiva (Troll das Cavernas)."""
+    return (f"A maça do {nome_inimigo} te acerta em cheio e te deixa ZONZO — "
+            f"sua ESQUIVA cai no próximo turno!")
 
 # ── Pools de loot (Lote C) ────────────────────────────────────────────────────
 # Cada tipo de inimigo tem um pool temático. O pool padrão (LOOT_PADRAO) é usado
@@ -114,7 +134,9 @@ class Inimigo(Entidade):
         tipo_especial: Optional[str] = None,
         chance_miss: float = 0.10,
         chance_drop: float = 0.10,
-        chance_veneno: float = 0.0
+        chance_veneno: float = 0.0,
+        chance_fraqueza: float = 0.0,
+        chance_esquiva_debuff: float = 0.0
     ) -> None:
         # Base (Entidade): valida nome/hp e define nome, hp_max e hp.
         super().__init__(nome, hp)
@@ -136,6 +158,10 @@ class Inimigo(Entidade):
             raise ValueError()
         if not (0.0 <= chance_veneno <= 1.0):
             raise ValueError()
+        if not (0.0 <= chance_fraqueza <= 1.0):
+            raise ValueError()
+        if not (0.0 <= chance_esquiva_debuff <= 1.0):
+            raise ValueError()
 
         self.atk = atk
         self.dificuldade = dificuldade
@@ -150,6 +176,8 @@ class Inimigo(Entidade):
         self.chance_miss = chance_miss
         self.chance_drop = chance_drop
         self.chance_veneno = chance_veneno
+        self.chance_fraqueza = chance_fraqueza
+        self.chance_esquiva_debuff = chance_esquiva_debuff
 
     # esta_vivo() e curar() são herdados de Entidade.
 
@@ -210,8 +238,9 @@ class Inimigo(Entidade):
 
         # Erro: alguns tipos erram muito (Horda) ou quase nunca (Banshee).
         if random.random() < self.chance_miss:
-            return {"dano": 0, "errou": True, "curou": 0,
-                    "atordoou": False, "envenenou": False, "subiu_atk": subiu_atk}
+            return {"dano": 0, "errou": True, "curou": 0, "atordoou": False,
+                    "envenenou": False, "fraqueza": False, "esquiva_reduzida": False,
+                    "subiu_atk": subiu_atk}
 
         dano = alvo.receber_dano(self.atk)
 
@@ -223,13 +252,17 @@ class Inimigo(Entidade):
         # Atordoamento (Banshee): chance de o alvo perder o próximo turno.
         atordoou = self.chance_atordoar > 0 and random.random() < self.chance_atordoar
 
-        # Veneno (Goblin/Rato Gigante): chance de aplicar dano-por-turno (Lote M).
-        # Só o chamador conhece o alvo concreto, então aqui apenas REPORTAMOS;
-        # quem cuida do combate chama alvo.envenenar().
-        envenenou = self.chance_veneno > 0 and dano > 0 and random.random() < self.chance_veneno
+        # Debuffs por acerto — só REPORTAMOS; o laço de combate aplica o efeito
+        # no jogador (mesmo padrão do veneno):
+        #   veneno (Goblin/Rato), fraqueza (Orc), esquiva reduzida (Troll).
+        envenenou        = self.chance_veneno > 0 and dano > 0 and random.random() < self.chance_veneno
+        fraqueza         = self.chance_fraqueza > 0 and dano > 0 and random.random() < self.chance_fraqueza
+        esquiva_reduzida = self.chance_esquiva_debuff > 0 and dano > 0 and random.random() < self.chance_esquiva_debuff
 
         return {"dano": dano, "errou": False, "curou": curou,
-                "atordoou": atordoou, "envenenou": envenenou, "subiu_atk": subiu_atk}
+                "atordoou": atordoou, "envenenou": envenenou,
+                "fraqueza": fraqueza, "esquiva_reduzida": esquiva_reduzida,
+                "subiu_atk": subiu_atk}
 
     def tabela_loot(self) -> list:
         """
@@ -277,7 +310,11 @@ class Inimigo(Entidade):
             atk = random.randint(3, 5) + bonus_atk + 1
             xp = random.randint(25, 50)
             moedas = random.randint(5, 10) + bonus_moedas
-            return Inimigo(nome, hp, atk, 2, xp, moedas)
+            # Debuffs por nome (Lote B2): Orc enfraquece, Troll reduz esquiva.
+            cf = CHANCE_FRAQUEZA       if nome in NOMES_APLICAM_FRAQUEZA       else 0.0
+            ce = CHANCE_ESQUIVA_DEBUFF if nome in NOMES_APLICAM_ESQUIVA_DEBUFF else 0.0
+            return Inimigo(nome, hp, atk, 2, xp, moedas,
+                           chance_fraqueza=cf, chance_esquiva_debuff=ce)
 
         # Comum (dif 1) — escala por andar.
         nome = random.choice(NOMES_DIFICULDADE_1)

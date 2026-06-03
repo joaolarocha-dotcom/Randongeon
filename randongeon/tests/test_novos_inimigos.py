@@ -56,6 +56,8 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.chance_atordoar = 0.0
     inimigo.tipo_especial = None
     inimigo.chance_veneno = 0.0
+    inimigo.chance_fraqueza = 0.0
+    inimigo.chance_esquiva_debuff = 0.0
 
 def _dummy(hp=1, atk=1, xp=10, moedas=5) -> Inimigo:
     i = Inimigo.__new__(Inimigo)
@@ -278,6 +280,63 @@ class TestRampaElites:
         assert ratio_especial(5) == ESPECIAL_RATIO_BASE
         assert ratio_especial(12) > ratio_especial(6)
         assert ratio_especial(99) == ESPECIAL_RATIO_CAP
+
+
+class TestEfeitosDebuff:
+    """B2: Fraqueza (Orc) e EsquivaReduzida (Troll) como EfeitoStatus."""
+
+    def test_fraqueza_reduz_atk_efetivo(self):
+        from jogo.entidades.efeitos import Fraqueza
+        j = Jogador("H", hp=20, atk=10)
+        j.aplicar_efeito(Fraqueza(2, reducao=3))
+        assert j.atk_efetivo() == 7
+        assert j.atk == 10            # o ATK base não muda
+
+    def test_fraqueza_nunca_zera_o_atk(self):
+        from jogo.entidades.efeitos import Fraqueza
+        j = Jogador("H", hp=20, atk=2)
+        j.aplicar_efeito(Fraqueza(2, reducao=99))
+        assert j.atk_efetivo() == 1
+
+    def test_esquiva_reduzida_baixa_esquiva_efetiva(self):
+        from jogo.entidades.efeitos import EsquivaReduzida
+        j = Jogador("H", hp=20, atk=5, esq=0.30)
+        j.aplicar_efeito(EsquivaReduzida(1, reducao=0.20))
+        assert abs(j.esquiva_efetiva() - 0.10) < 1e-9
+        assert j.esq == 0.30
+
+    def test_efeito_expira_apos_os_turnos(self):
+        from jogo.entidades.efeitos import Fraqueza
+        j = Jogador("H", hp=20, atk=10)
+        j.aplicar_efeito(Fraqueza(1, reducao=3))
+        j.processar_efeitos_turno()           # consome o único turno
+        assert j.atk_efetivo() == 10          # voltou ao normal
+
+    def test_orc_aplica_fraqueza_ao_acertar(self):
+        from jogo.entidades.inimigo import CHANCE_FRAQUEZA
+        orc = Inimigo("Orc", hp=10, atk=5, dificuldade=2, xp=10, moedas=5,
+                      chance_fraqueza=1.0)
+        alvo = Jogador("H", hp=50, atk=5)
+        with patch("jogo.entidades.inimigo.random.random", return_value=0.5):
+            rel = orc.atacar(alvo)
+        assert rel["fraqueza"] is True
+        assert CHANCE_FRAQUEZA > 0
+
+    def test_troll_reduz_esquiva_ao_acertar(self):
+        troll = Inimigo("Troll das Cavernas", hp=10, atk=5, dificuldade=2, xp=10,
+                        moedas=5, chance_esquiva_debuff=1.0)
+        alvo = Jogador("H", hp=50, atk=5)
+        with patch("jogo.entidades.inimigo.random.random", return_value=0.5):
+            rel = troll.atacar(alvo)
+        assert rel["esquiva_reduzida"] is True
+
+    def test_gerar_orc_aplica_fraqueza(self):
+        from jogo.entidades.inimigo import CHANCE_FRAQUEZA
+        with patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.90]), \
+             patch("jogo.entidades.inimigo.random.choice", return_value="Orc"):
+            inimigo = Inimigo.gerar(andar=10)
+        assert inimigo.nome == "Orc"
+        assert inimigo.chance_fraqueza == CHANCE_FRAQUEZA
 
 
 class TestThresholdsDeAndar:

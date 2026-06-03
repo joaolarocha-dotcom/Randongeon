@@ -274,23 +274,28 @@ class TestBandoSequencial:
     def test_texto_diferencia_goblin_individual_do_bando(self):
         # Lote 2 textos: goblin intermediário cai um por um; o "Bando foi
         # derrotado" só aparece quando o ÚLTIMO tomba.
+        # Robusto a misses do jogador (10%): coletamos as mensagens até a vitória.
         sid = _nova_sessao("story")["session_id"]
         self._montar_bando(sid)
 
-        r1 = client.post(f"/game/{sid}/combat/attack").json()
-        assert r1["resultado"] == "proximo"
-        assert "O goblin foi derrotado" in r1["mensagem"]
-        assert "Outro goblin avança" in r1["mensagem"]
-        assert "Bando de Goblins foi derrotado" not in r1["mensagem"]
-
-        ultima_msg = r1["mensagem"]
-        for _ in range(10):
+        msgs = []
+        resultado = None
+        for _ in range(30):
             r = client.post(f"/game/{sid}/combat/attack").json()
-            ultima_msg = r["mensagem"]
-            if r["resultado"] in ("vitoria", "derrota"):
+            msgs.append(r["mensagem"])
+            resultado = r["resultado"]
+            if resultado in ("vitoria", "derrota"):
                 break
-        assert r["resultado"] == "vitoria"
-        assert "Bando de Goblins foi derrotado" in ultima_msg
+
+        assert resultado == "vitoria"
+        # transições intermediárias falam de UM goblin, nunca do bando inteiro
+        intermediarias = [m for m in msgs if "Outro goblin avança" in m]
+        assert intermediarias, "esperava ao menos uma transição de goblin individual"
+        for m in intermediarias:
+            assert "O goblin foi derrotado" in m
+            assert "Bando de Goblins foi derrotado" not in m
+        # só a mensagem final anuncia a derrota do bando
+        assert "Bando de Goblins foi derrotado" in msgs[-1]
 
 
 # ── Correções do Lote F ───────────────────────────────────────────────────────

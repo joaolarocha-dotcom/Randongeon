@@ -3,7 +3,11 @@ import time
 from typing import Optional
 
 from jogo.entidades.jogador import Jogador
-from jogo.entidades.inimigo import Inimigo, LOOT_PADRAO, mensagem_veneno
+from jogo.entidades.inimigo import (
+    Inimigo, LOOT_PADRAO,
+    mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
+)
+from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
 from jogo.entidades.item    import Item
 from jogo.sistemas.gerador  import GeradorSala
 from jogo.entidades.loja    import Loja
@@ -104,13 +108,13 @@ class Masmorra:
         while self.jogador.esta_vivo() and inimigo.esta_vivo():
             if not jogador_atordoado:
                 if not random.random() < CHANCE_MISS_JOGADOR:
-                    inimigo.receber_dano(self.jogador.atk)
+                    inimigo.receber_dano(self.jogador.atk_efetivo())
             else:
                 jogador_atordoado = False
 
             if inimigo.esta_vivo():
-                # Veneno de turnos anteriores age no início da troca (Lote M).
-                self.jogador.tick_veneno()
+                # Efeitos de status (veneno) agem no início da troca (Lote M/B2).
+                self.jogador.processar_efeitos_turno()
                 if not self.jogador.esta_vivo():
                     break
                 # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
@@ -120,6 +124,10 @@ class Masmorra:
                     jogador_atordoado = True
                 if relatorio["envenenou"]:
                     self.jogador.envenenar()
+                if relatorio.get("fraqueza"):
+                    self.jogador.aplicar_efeito(Fraqueza(2))
+                if relatorio.get("esquiva_reduzida"):
+                    self.jogador.aplicar_efeito(EsquivaReduzida(1))
 
         if not self.jogador.esta_vivo():
             return "derrota"
@@ -240,17 +248,19 @@ class Masmorra:
                 print()
 
                 if acao == "1":
-                    dano = inimigo.receber_dano(self.jogador.atk)
-                    _imprimir_dano_jogador(self.jogador.atk, dano, inimigo)
+                    atk = self.jogador.atk_efetivo()
+                    dano = inimigo.receber_dano(atk)
+                    _imprimir_dano_jogador(atk, dano, inimigo)
                     time.sleep(0.2)
 
                 elif acao == "2":
                     print("Você tenta se esquivar e contra-atacar...\n")
                     time.sleep(0.2)
 
-                    if random.random() <= self.jogador.esq:
-                        dano = inimigo.receber_dano(self.jogador.atk)
-                        _imprimir_dano_jogador(self.jogador.atk, dano, inimigo)
+                    if random.random() <= self.jogador.esquiva_efetiva():
+                        atk = self.jogador.atk_efetivo()
+                        dano = inimigo.receber_dano(atk)
+                        _imprimir_dano_jogador(atk, dano, inimigo)
                         print("Esquiva bem-sucedida! Não foi atingido.\n")
                         time.sleep(0.2)
                         continue
@@ -344,6 +354,16 @@ class Masmorra:
                 if relatorio["envenenou"]:
                     self.jogador.envenenar()
                     print(mensagem_veneno(inimigo.nome) + "\n")
+                    time.sleep(0.4)
+
+                if relatorio.get("fraqueza"):
+                    self.jogador.aplicar_efeito(Fraqueza(2))
+                    print(mensagem_fraqueza(inimigo.nome) + "\n")
+                    time.sleep(0.4)
+
+                if relatorio.get("esquiva_reduzida"):
+                    self.jogador.aplicar_efeito(EsquivaReduzida(1))
+                    print(mensagem_esquiva_reduzida(inimigo.nome) + "\n")
                     time.sleep(0.4)
 
         if not self.jogador.esta_vivo():
