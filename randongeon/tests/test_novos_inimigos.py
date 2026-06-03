@@ -222,6 +222,34 @@ class TestCriarEspecial:
         else:
             pytest.skip("Dispatcher _criar_especial removido.")
 
+class TestRampaElites:
+    """Balanceamento: a presença de elites/especiais escala com o andar (A6+)."""
+
+    def test_sem_elite_antes_do_andar_5(self):
+        from jogo.entidades.inimigo import chance_elite
+        assert chance_elite(1) == 0.0
+        assert chance_elite(4) == 0.0
+
+    def test_base_no_andar_5(self):
+        from jogo.entidades.inimigo import chance_elite, ELITE_GATE_BASE
+        assert chance_elite(5) == ELITE_GATE_BASE
+
+    def test_chance_cresce_a_partir_do_andar_6(self):
+        from jogo.entidades.inimigo import chance_elite
+        assert chance_elite(6) > chance_elite(5)
+        assert chance_elite(10) > chance_elite(6)
+
+    def test_chance_respeita_teto(self):
+        from jogo.entidades.inimigo import chance_elite, ELITE_GATE_CAP
+        assert chance_elite(99) == ELITE_GATE_CAP
+
+    def test_ratio_especial_cresce_e_tem_teto(self):
+        from jogo.entidades.inimigo import ratio_especial, ESPECIAL_RATIO_BASE, ESPECIAL_RATIO_CAP
+        assert ratio_especial(5) == ESPECIAL_RATIO_BASE
+        assert ratio_especial(12) > ratio_especial(6)
+        assert ratio_especial(99) == ESPECIAL_RATIO_CAP
+
+
 class TestThresholdsDeAndar:
     # Thresholds antecipados (Lote C): Golem>=5, Nosferatu>=8, Banshee>=10.
     @patch("jogo.entidades.inimigo.random.random", return_value=0.50)

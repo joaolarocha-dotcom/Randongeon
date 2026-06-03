@@ -19,6 +19,32 @@ ESCALA_ATK_DIVISOR     = 5     # +1 de ATK a cada 5 andares
 ESCALA_MOEDAS_DIVISOR  = 2     # +1 de moeda a cada 2 andares
 ELITE_HP_MULTIPLICADOR = 1.4   # elites escalam mais HP que comuns
 
+# ── Rampa de presença de elites/especiais por andar (balanceamento) ───────────
+# Até o andar 5 mantém a base; a partir do 6 a chance de aparecer um elite ou
+# especial cresce com o andar (vale para os dois modos). Calibrado por simulação
+# Monte Carlo (config "MODERADA"): no fim da campanha ~1 em 3 vira especial e
+# ~1 em 5 vira elite, sem apagar os comuns.
+ELITE_GATE_BASE     = 0.25   # chance de entrar no ramo elite/especial no andar 5
+ELITE_GATE_STEP     = 0.04   # +chance por andar a partir do andar 6
+ELITE_GATE_CAP      = 0.60   # teto da chance de entrar no ramo
+ESPECIAL_RATIO_BASE = 0.40   # dentro do ramo, chance de ser ESPECIAL (vs elite)
+ESPECIAL_RATIO_STEP = 0.02   # +chance de especial por andar
+ESPECIAL_RATIO_CAP  = 0.60   # teto da chance de especial
+
+
+def chance_elite(andar: int) -> float:
+    """Chance de o encontro entrar no ramo elite/especial, escalando por andar."""
+    if andar < 5:
+        return 0.0
+    if andar < 6:
+        return ELITE_GATE_BASE
+    return min(ELITE_GATE_CAP, ELITE_GATE_BASE + (andar - 5) * ELITE_GATE_STEP)
+
+
+def ratio_especial(andar: int) -> float:
+    """Dentro do ramo, chance de ser um ESPECIAL (em vez de um elite comum)."""
+    return min(ESPECIAL_RATIO_CAP, ESPECIAL_RATIO_BASE + max(0, andar - 5) * ESPECIAL_RATIO_STEP)
+
 # ── Veneno (Lote M) ───────────────────────────────────────────────────────────
 # Chance de um inimigo COMUM (apenas Goblin e Rato Gigante) envenenar o jogador
 # ao acertar um golpe. Mantida baixa de propósito — calibrada por simulação.
@@ -236,10 +262,11 @@ class Inimigo:
         bonus_atk    = andar // ESCALA_ATK_DIVISOR
         bonus_moedas = andar // ESCALA_MOEDAS_DIVISOR
 
-        if andar >= 5 and random.random() < 0.25:
+        if andar >= 5 and random.random() < chance_elite(andar):
             # Thresholds antecipados (Lote C): os especiais aparecem mais cedo,
-            # quando o herói ainda é vulnerável — validado por simulação, pois só
-            # assim as mecânicas (defesa/cura/atordoar) fazem diferença real.
+            # quando o herói ainda é vulnerável. A chance de entrar aqui (e de
+            # virar um especial) cresce com o andar a partir do 6 — ver
+            # chance_elite()/ratio_especial().
             pool_especiais = []
             if andar >= 5:
                 pool_especiais.append(GolemDePedra)
@@ -248,7 +275,7 @@ class Inimigo:
             if andar >= 10:
                 pool_especiais.append(Banshee)
 
-            if pool_especiais and random.random() < 0.40:
+            if pool_especiais and random.random() < ratio_especial(andar):
                 classe_escolhida = random.choice(pool_especiais)
                 return classe_escolhida()
 
