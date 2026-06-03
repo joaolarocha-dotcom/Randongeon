@@ -146,10 +146,10 @@ export interface LoadStateResponse {
 }
 
 export const api = {
-  newGame: (nome: string, modo: Modo = "story") =>
+  newGame: (nome: string, modo: Modo = "story", dom: string | null = null) =>
     request<{ session_id: string; jogador: JogadorStatus; modo: Modo }>("/game/new", {
       method: "POST",
-      body: JSON.stringify({ nome, modo }),
+      body: JSON.stringify({ nome, modo, dom }),
     }),
 
   getStatus: (id: string) =>

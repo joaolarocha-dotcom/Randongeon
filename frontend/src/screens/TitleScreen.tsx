@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useGameStore } from "../store/gameStore";
 import { LOGO_SPRITE, FALLBACK_SPRITE_PATH } from "../assets/spriteMap";
 import { audio } from "../components/audio/AudioEngine";
+import { DOMS } from "../data/doms";
 
 export function TitleScreen() {
   const [nome, setNome] = useState("");
+  const [dom, setDom] = useState<string | null>(null);   // dom escolhido (null = nenhum)
   const [logoSrc, setLogoSrc] = useState(LOGO_SPRITE.src);
   const { startGame, loading, error, pendingModo, goToMainMenu } = useGameStore();
 
@@ -19,9 +21,11 @@ export function TitleScreen() {
     if (nome.trim()) {
       audio.playSfx("sfx_menu_select");
       audio.playMusic("bgm_title");
-      startGame(nome.trim());
+      startGame(nome.trim(), dom);
     }
   };
+
+  const descricaoDom = dom ? DOMS.find((d) => d.id === dom)?.descricao : "Comece sem nenhum bônus passivo.";
 
   return (
     <div
@@ -78,6 +82,44 @@ export function TitleScreen() {
             width: 200,
           }}
         />
+
+        {/* Seleção de dom (Lote 3b) */}
+        <label style={{ fontSize: "var(--font-size-sm)", color: "#000" }}>Escolha um Dom:</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 360 }}>
+          <button
+            type="button"
+            className="poke-btn"
+            onClick={() => { audio.playSfx("sfx_menu_select"); setDom(null); }}
+            style={{
+              padding: "4px 8px",
+              fontSize: "var(--font-size-xs)",
+              opacity: dom === null ? 1 : 0.6,
+              outline: dom === null ? "2px solid #1a7f3c" : "none",
+            }}
+          >
+            NENHUM
+          </button>
+          {DOMS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              className="poke-btn"
+              onClick={() => { audio.playSfx("sfx_menu_select"); setDom(d.id); }}
+              style={{
+                padding: "4px 8px",
+                fontSize: "var(--font-size-xs)",
+                opacity: dom === d.id ? 1 : 0.6,
+                outline: dom === d.id ? "2px solid #1a7f3c" : "none",
+              }}
+            >
+              {d.nome.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: "var(--font-size-xs)", color: "#333", textAlign: "center", maxWidth: 320, minHeight: 24 }}>
+          {descricaoDom}
+        </p>
+
         <div style={{ display: "flex", gap: 8 }}>
           <button
             className="poke-btn"
