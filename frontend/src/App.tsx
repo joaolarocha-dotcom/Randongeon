@@ -4,6 +4,7 @@ import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { TutorialsScreen } from "./screens/TutorialsScreen";
 import { LoadGameScreen } from "./screens/LoadGameScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { TitleScreen } from "./screens/TitleScreen";
 import { LoreScreen } from "./screens/LoreScreen";
 import { MenuScreen } from "./screens/MenuScreen";
@@ -38,6 +39,7 @@ function App() {
       {screen === "tutorials" && <TutorialsScreen />}
       {screen === "load_game" && <LoadGameScreen />}
       {screen === "settings" && <SettingsScreen />}
+      {screen === "leaderboard" && <LeaderboardScreen />}
       {screen === "title" && <TitleScreen />}
       {screen === "lore" && <LoreScreen />}
       {screen === "menu" && <MenuScreen />}
