@@ -34,6 +34,7 @@ export interface JogadorStatus {
   moedas: number;
   andar: number;
   inventario: ItemInventario[];
+  veneno_turnos?: number;
 }
 
 export interface InimigoInfo {

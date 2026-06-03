@@ -109,11 +109,17 @@ class Masmorra:
                 jogador_atordoado = False
 
             if inimigo.esta_vivo():
+                # Veneno de turnos anteriores age no início da troca (Lote M).
+                self.jogador.tick_veneno()
+                if not self.jogador.esta_vivo():
+                    break
                 # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
                 # vive em Inimigo.atacar(). Aqui só reagimos ao relatório.
                 relatorio = inimigo.atacar(self.jogador)
                 if relatorio["atordoou"]:
                     jogador_atordoado = True
+                if relatorio["envenenou"]:
+                    self.jogador.envenenar()
 
         if not self.jogador.esta_vivo():
             return "derrota"
@@ -290,6 +296,17 @@ class Masmorra:
                     continue
 
             if inimigo.esta_vivo():
+                # Veneno de turnos anteriores age primeiro (Lote M).
+                dano_veneno = self.jogador.tick_veneno()
+                if dano_veneno > 0:
+                    print(
+                        f"O veneno corrói {dano_veneno} de vida. "
+                        f"(HP: {self.jogador.hp}/{self.jogador.hp_max})\n"
+                    )
+                    time.sleep(0.2)
+                    if not self.jogador.esta_vivo():
+                        break
+
                 # Turno do inimigo centralizado em Inimigo.atacar(); aqui só
                 # narramos o relatório na tela.
                 relatorio = inimigo.atacar(self.jogador)
@@ -321,6 +338,14 @@ class Masmorra:
                     print(
                         "O grito da Banshee ecoa dentro do seu crânio... "
                         "Você será ATORDOADO no próximo turno!\n"
+                    )
+                    time.sleep(0.4)
+
+                if relatorio["envenenou"]:
+                    self.jogador.envenenar()
+                    print(
+                        "A lâmina suja te corta — você foi ENVENENADO! "
+                        "O veneno vai corroer sua vida pelos próximos turnos.\n"
                     )
                     time.sleep(0.4)
 

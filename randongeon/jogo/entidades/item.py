@@ -89,6 +89,11 @@ class Item:
         if self.bonus_hp > 0:
             hp_recuperado   = jogador.curar(self.bonus_hp)
             resultado["hp"] = hp_recuperado
+            # Lote M: poções de cura também purgam o veneno. Guard para suportar
+            # jogadores mockados nos testes que não implementam curar_veneno.
+            curar_veneno = getattr(jogador, "curar_veneno", None)
+            if callable(curar_veneno):
+                curar_veneno()
 
         if self.bonus_esq > 0:
             # CORRETO: delega para aumenta_esq() para respeitar esq_max

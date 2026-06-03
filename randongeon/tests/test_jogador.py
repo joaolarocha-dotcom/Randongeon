@@ -364,3 +364,65 @@ class TestPontuacao:
     def test_pontuacao_e_somente_leitura(self, jogador_padrao):
         with pytest.raises(AttributeError):
             jogador_padrao.pontuacao = 999
+
+
+class TestVeneno:
+    """Lote M: veneno (DoT) — 1 dano/turno, máx VENENO_DURACAO, curado por
+    poção de cura ou ao subir de nível. Estado vive no jogador (persiste entre
+    andares)."""
+
+    def test_inicia_sem_veneno(self, jogador_padrao):
+        assert jogador_padrao.veneno_turnos == 0
+        assert jogador_padrao.envenenado is False
+
+    def test_envenenar_define_duracao(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        assert jogador_padrao.veneno_turnos == Jogador.VENENO_DURACAO
+        assert jogador_padrao.envenenado is True
+
+    def test_envenenar_nao_acumula_alem_do_teto(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        jogador_padrao.tick_veneno()         # 3 → 2
+        jogador_padrao.envenenar()           # renova, não soma
+        assert jogador_padrao.veneno_turnos == Jogador.VENENO_DURACAO
+
+    def test_tick_causa_um_de_dano_e_decrementa(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        dano = jogador_padrao.tick_veneno()
+        assert dano == 1
+        assert jogador_padrao.hp == 19
+        assert jogador_padrao.veneno_turnos == Jogador.VENENO_DURACAO - 1
+
+    def test_tick_sem_veneno_nao_faz_nada(self, jogador_padrao):
+        dano = jogador_padrao.tick_veneno()
+        assert dano == 0
+        assert jogador_padrao.hp == 20
+
+    def test_veneno_dura_no_maximo_tres_turnos(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        total = sum(jogador_padrao.tick_veneno() for _ in range(10))
+        assert total == Jogador.VENENO_DURACAO    # só 3 ticks causaram dano
+        assert jogador_padrao.envenenado is False
+
+    def test_curar_veneno_remove(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        jogador_padrao.curar_veneno()
+        assert jogador_padrao.veneno_turnos == 0
+
+    def test_subir_de_nivel_purga_veneno(self, jogador_padrao):
+        jogador_padrao.envenenar()
+        jogador_padrao.ganhar_xp(jogador_padrao.xp_para_proximo_nivel())
+        assert jogador_padrao.nivel == 2
+        assert jogador_padrao.veneno_turnos == 0
+
+    def test_pocao_de_cura_purga_veneno(self):
+        from jogo.entidades.item import Item
+        j = Jogador("Envenenado", hp=20, atk=5)
+        j.receber_dano(8)
+        j.envenenar()
+        Item("Poção de Cura", bonus_hp=5).usar(j)
+        assert j.veneno_turnos == 0
+
+    def test_envenenar_negativo_levanta_value_error(self, jogador_padrao):
+        with pytest.raises(ValueError):
+            jogador_padrao.envenenar(-1)

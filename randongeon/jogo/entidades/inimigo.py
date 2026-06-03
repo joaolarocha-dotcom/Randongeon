@@ -19,6 +19,13 @@ ESCALA_ATK_DIVISOR     = 5     # +1 de ATK a cada 5 andares
 ESCALA_MOEDAS_DIVISOR  = 2     # +1 de moeda a cada 2 andares
 ELITE_HP_MULTIPLICADOR = 1.4   # elites escalam mais HP que comuns
 
+# ── Veneno (Lote M) ───────────────────────────────────────────────────────────
+# Chance de um inimigo COMUM (apenas Goblin e Rato Gigante) envenenar o jogador
+# ao acertar um golpe. Mantida baixa de propósito — calibrada por simulação.
+# Veneno = 1 de dano/turno por até Jogador.VENENO_DURACAO turnos.
+CHANCE_VENENO = 0.08
+NOMES_PODEM_ENVENENAR = ("Goblin", "Rato Gigante")
+
 # ── Pools de loot (Lote C) ────────────────────────────────────────────────────
 # Cada tipo de inimigo tem um pool temático. O pool padrão (LOOT_PADRAO) é usado
 # por inimigos comuns e bosses. As subclasses sobrescrevem tabela_loot() para
@@ -64,7 +71,8 @@ class Inimigo:
         chance_atordoar: float = 0.0,
         tipo_especial: Optional[str] = None,
         chance_miss: float = 0.10,
-        chance_drop: float = 0.10
+        chance_drop: float = 0.10,
+        chance_veneno: float = 0.0
     ) -> None:
         if not nome or not isinstance(nome, str) or not nome.strip():
             raise ValueError()
@@ -86,6 +94,8 @@ class Inimigo:
             raise ValueError()
         if not (0.0 <= chance_atordoar <= 1.0):
             raise ValueError()
+        if not (0.0 <= chance_veneno <= 1.0):
+            raise ValueError()
 
         self.nome = nome
         self.hp = hp
@@ -102,6 +112,7 @@ class Inimigo:
         self.tipo_especial = tipo_especial
         self.chance_miss = chance_miss
         self.chance_drop = chance_drop
+        self.chance_veneno = chance_veneno
 
     def esta_vivo(self) -> bool:
         return self.hp > 0
@@ -149,6 +160,7 @@ class Inimigo:
                 "errou":     bool — True se o ataque errou (chance_miss),
                 "curou":     int  — HP recuperado por roubo de vida (lifesteal),
                 "atordoou":  bool — True se atordoou o alvo neste turno,
+                "envenenou": bool — True se aplicou veneno no alvo neste turno,
                 "subiu_atk": int  — quanto o ATK escalou neste turno (0 se nada),
             }
 
@@ -166,7 +178,7 @@ class Inimigo:
         # Erro: alguns tipos erram muito (Horda) ou quase nunca (Banshee).
         if random.random() < self.chance_miss:
             return {"dano": 0, "errou": True, "curou": 0,
-                    "atordoou": False, "subiu_atk": subiu_atk}
+                    "atordoou": False, "envenenou": False, "subiu_atk": subiu_atk}
 
         dano = alvo.receber_dano(self.atk)
 
@@ -178,8 +190,13 @@ class Inimigo:
         # Atordoamento (Banshee): chance de o alvo perder o próximo turno.
         atordoou = self.chance_atordoar > 0 and random.random() < self.chance_atordoar
 
+        # Veneno (Goblin/Rato Gigante): chance de aplicar dano-por-turno (Lote M).
+        # Só o chamador conhece o alvo concreto, então aqui apenas REPORTAMOS;
+        # quem cuida do combate chama alvo.envenenar().
+        envenenou = self.chance_veneno > 0 and dano > 0 and random.random() < self.chance_veneno
+
         return {"dano": dano, "errou": False, "curou": curou,
-                "atordoou": atordoou, "subiu_atk": subiu_atk}
+                "atordoou": atordoou, "envenenou": envenenou, "subiu_atk": subiu_atk}
 
     def tabela_loot(self) -> list:
         """
@@ -234,7 +251,9 @@ class Inimigo:
         atk = random.randint(1, 3) + bonus_atk
         xp = random.randint(10, 20)
         moedas = random.randint(0, 4) + bonus_moedas
-        return Inimigo(nome, hp, atk, 1, xp, moedas)
+        # Veneno (Lote M): apenas Goblin e Rato Gigante podem envenenar.
+        chance_veneno = CHANCE_VENENO if nome in NOMES_PODEM_ENVENENAR else 0.0
+        return Inimigo(nome, hp, atk, 1, xp, moedas, chance_veneno=chance_veneno)
 
     def __repr__(self) -> str:
         return (
