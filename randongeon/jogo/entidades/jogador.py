@@ -36,6 +36,7 @@ class Jogador(Entidade):
     VENENO_DURACAO = 3    # turnos que o veneno dura ao ser aplicado (Lote M)
     CHANCE_CRITICO_BASE   = 0.10  # chance base de acerto crítico (Lote crítico)
     MULTIPLICADOR_CRITICO = 1.5   # multiplicador de dano no crítico
+    CURA_NIVEL_FRACAO     = 0.60  # cura ao subir de nível = 60% do HP máx (era 100%)
 
     def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3, moedas: int = 0) -> None:
         """
@@ -161,7 +162,9 @@ class Jogador(Entidade):
             self.nivel  += 1
             self.atk    += self.ATK_POR_NIVEL
             self.hp_max += self.HP_POR_NIVEL
-            self.hp      = self.hp_max                       # cura total ao subir
+            # Cura PARCIAL ao subir (balanceamento): 60% do HP máx, em vez de
+            # cura total — tira o "peso zero" do pós-boss.
+            self.hp      = min(self.hp_max, self.hp + int(self.hp_max * self.CURA_NIVEL_FRACAO))
             self.esq     = min(self.ESQ_MAXIMA, self.esq + self.ESQ_POR_NIVEL)
             self.remover_efeitos(apenas_ao_curar=True)       # subir de nível purga veneno (Lote M/B2)
             niveis_ganhos += 1

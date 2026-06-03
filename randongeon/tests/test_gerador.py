@@ -184,10 +184,16 @@ class TestGeradorSalaMockItem:
 
     @patch("jogo.sistemas.gerador.random.randint", return_value=4)
     def test_mock_randint_2_gera_item(self, mock_randint, gerador_padrao):
-        """Mock: randint=4 → deve gerar item (faixa item é sorte 4-5)."""
+        """Mock: randint=4 → deve gerar item (faixa item é sorte 4-6)."""
         tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
         assert tipo == "item"
         assert isinstance(conteudo, Item)
+
+    @patch("jogo.sistemas.gerador.random.randint", return_value=6)
+    def test_mock_randint_6_gera_item(self, mock_randint, gerador_padrao):
+        """Balance: faixa de item ampliada para 4-6 (10%→15%)."""
+        tipo, _, _ = gerador_padrao.gerar_sala(andar=1)
+        assert tipo == "item"
 
     @patch("jogo.sistemas.gerador.random.randint", return_value=4)
     def test_mock_item_pertence_ao_catalogo(self, mock_randint, gerador_padrao):
@@ -213,9 +219,9 @@ class TestGeradorSalaMockInimigo:
     MUDANÇA v2: qualquer randint >= 3 força inimigo.
     """
 
-    @patch("jogo.sistemas.gerador.random.randint", return_value=6)
+    @patch("jogo.sistemas.gerador.random.randint", return_value=7)
     def test_mock_randint_3_gera_inimigo(self, mock_randint, gerador_padrao):
-        """Mock: randint=6 → deve gerar inimigo (faixa 6-20)."""
+        """Mock: randint=7 → deve gerar inimigo (faixa 7-20; item subiu p/ 4-6)."""
         tipo, conteudo, _ = gerador_padrao.gerar_sala(andar=1)
         assert tipo == "inimigo"
         assert isinstance(conteudo, Inimigo)

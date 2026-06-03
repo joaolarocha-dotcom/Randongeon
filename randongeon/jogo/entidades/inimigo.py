@@ -68,6 +68,10 @@ ESQUIVA_ORC            = 0.15
 ESQUIVA_BANSHEE        = 0.30
 TROLL_HP_MULTIPLICADOR = 1.6   # Troll tem ~60% mais HP que um elite comum
 
+# Drop de loot de comuns e elites (balanceamento): 0.10 → 0.15, para compensar a
+# cura parcial no level-up (mais poções/itens para gerenciar).
+CHANCE_DROP_PADRAO = 0.15
+
 # Flavor da picada de veneno, por inimigo (Lote 2 de textos). Mantido junto da
 # definição dos inimigos para API e CLI usarem a MESMA mensagem.
 MENSAGENS_VENENO = {
@@ -334,7 +338,8 @@ class Inimigo(Entidade):
                 return Orc(hp, atk, xp, moedas)
             if nome == "Troll das Cavernas":
                 return TrollDasCavernas(hp, atk, xp, moedas)
-            return Inimigo(nome, hp, atk, 2, xp, moedas)   # Esqueleto Guerreiro
+            return Inimigo(nome, hp, atk, 2, xp, moedas,
+                           chance_drop=CHANCE_DROP_PADRAO)   # Esqueleto Guerreiro
 
         # Comum (dif 1) — escala por andar.
         nome = random.choice(NOMES_DIFICULDADE_1)
@@ -344,7 +349,8 @@ class Inimigo(Entidade):
         moedas = random.randint(0, 4) + bonus_moedas
         # Veneno (Lote M): apenas Goblin e Rato Gigante podem envenenar.
         chance_veneno = CHANCE_VENENO if nome in NOMES_PODEM_ENVENENAR else 0.0
-        return Inimigo(nome, hp, atk, 1, xp, moedas, chance_veneno=chance_veneno)
+        return Inimigo(nome, hp, atk, 1, xp, moedas,
+                       chance_veneno=chance_veneno, chance_drop=CHANCE_DROP_PADRAO)
 
     def __repr__(self) -> str:
         return (
@@ -443,6 +449,7 @@ class Orc(Inimigo):
             hp=hp, atk=atk, dificuldade=2, xp=xp, moedas=moedas,
             chance_fraqueza=CHANCE_FRAQUEZA,
             esquiva=ESQUIVA_ORC,
+            chance_drop=CHANCE_DROP_PADRAO,
         )
 
 
@@ -459,6 +466,7 @@ class TrollDasCavernas(Inimigo):
             xp=xp, moedas=moedas,
             chance_esquiva_debuff=CHANCE_ESQUIVA_DEBUFF,
             absorcao_dano=0,   # sem armadura — é tanque por bolha de HP
+            chance_drop=CHANCE_DROP_PADRAO,
         )
 
 

@@ -329,6 +329,14 @@ class TestIdentidadeEvasao:
             inimigo = Inimigo.gerar(andar=10)
         assert isinstance(inimigo, TrollDasCavernas)
 
+    def test_comum_usa_drop_padrao_maior(self):
+        # Balance: comuns/elites dropam com CHANCE_DROP_PADRAO (0.15).
+        from jogo.entidades.inimigo import CHANCE_DROP_PADRAO
+        with patch("jogo.entidades.inimigo.random.random", return_value=0.99), \
+             patch("jogo.entidades.inimigo.random.choice", return_value="Goblin"):
+            inimigo = Inimigo.gerar(andar=1)
+        assert inimigo.chance_drop == CHANCE_DROP_PADRAO
+
 
 class TestEfeitosDebuff:
     """B2: Fraqueza (Orc) e EsquivaReduzida (Troll) como EfeitoStatus."""

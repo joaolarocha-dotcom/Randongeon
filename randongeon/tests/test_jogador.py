@@ -324,11 +324,13 @@ class TestNivel:
         assert jogador_padrao.atk    == 7    # 5 + 2
         assert jogador_padrao.hp_max == 32   # 20 + 12
 
-    def test_cura_total_ao_subir(self):
+    def test_cura_parcial_ao_subir(self):
+        # Balanceamento: subir de nível cura 60% do HP máx (não mais total).
         j = Jogador("Ferido", hp=20, atk=5)
         j.receber_dano(15)          # hp = 5
-        j.ganhar_xp(20)             # sobe para nível 2
-        assert j.hp == j.hp_max     # curou ao subir
+        j.ganhar_xp(20)             # sobe para nível 2 (hp_max vira 32)
+        assert j.hp == min(j.hp_max, 5 + int(j.hp_max * Jogador.CURA_NIVEL_FRACAO))
+        assert j.hp < j.hp_max      # NÃO é mais cura total
 
     def test_multiplos_niveis_em_uma_chamada(self, jogador_padrao):
         # 60 XP total cruza L2 (20) e L3 (60) de uma vez
