@@ -58,6 +58,7 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.chance_veneno = 0.0
     inimigo.chance_fraqueza = 0.0
     inimigo.chance_esquiva_debuff = 0.0
+    inimigo.esquiva = 0.0
 
 def _dummy(hp=1, atk=1, xp=10, moedas=5) -> Inimigo:
     i = Inimigo.__new__(Inimigo)
@@ -280,6 +281,53 @@ class TestRampaElites:
         assert ratio_especial(5) == ESPECIAL_RATIO_BASE
         assert ratio_especial(12) > ratio_especial(6)
         assert ratio_especial(99) == ESPECIAL_RATIO_CAP
+
+
+class TestIdentidadeEvasao:
+    """Lote 2: Orc/Troll viram subclasses; evasão do inimigo (esquiva)."""
+
+    def test_orc_e_troll_sao_subclasses(self):
+        from jogo.entidades.inimigo import Orc, TrollDasCavernas
+        assert isinstance(Orc(), Inimigo)
+        assert isinstance(TrollDasCavernas(), Inimigo)
+
+    def test_orc_tem_fraqueza_e_evasao(self):
+        from jogo.entidades.inimigo import Orc, CHANCE_FRAQUEZA, ESQUIVA_ORC
+        o = Orc()
+        assert o.nome == "Orc"
+        assert o.chance_fraqueza == CHANCE_FRAQUEZA
+        assert o.esquiva == ESQUIVA_ORC
+        assert o.dificuldade == 2
+
+    def test_troll_tem_muito_hp_sem_armadura(self):
+        from jogo.entidades.inimigo import TrollDasCavernas, TROLL_HP_MULTIPLICADOR
+        t = TrollDasCavernas(hp=20, atk=5, xp=30, moedas=8)
+        assert t.hp == round(20 * TROLL_HP_MULTIPLICADOR)   # HP inflado
+        assert t.absorcao_dano == 0                          # sem armadura
+        assert t.esquiva == 0.0                              # tanque não esquiva
+        assert t.chance_esquiva_debuff > 0                   # mantém o debuff de maça
+
+    def test_banshee_tem_evasao_alta(self):
+        from jogo.entidades.inimigo import Banshee, ESQUIVA_BANSHEE
+        assert Banshee().esquiva == ESQUIVA_BANSHEE
+
+    def test_tentar_esquivar_curto_circuito_quando_zero(self):
+        comum = Inimigo("Goblin", hp=5, atk=2, dificuldade=1, xp=5, moedas=2)
+        assert comum.esquiva == 0.0
+        # esquiva 0 nunca desvia (e nem consome a sorte)
+        assert comum.tentar_esquivar() is False
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.10)
+    def test_tentar_esquivar_quando_tem_chance(self, _rand):
+        troll = Inimigo("X", hp=5, atk=2, dificuldade=2, xp=5, moedas=2, esquiva=0.30)
+        assert troll.tentar_esquivar() is True   # 0.10 < 0.30
+
+    def test_gerar_dispatcha_subclasses(self):
+        from jogo.entidades.inimigo import Orc, TrollDasCavernas
+        with patch("jogo.entidades.inimigo.random.random", side_effect=[0.50, 0.10, 0.90]), \
+             patch("jogo.entidades.inimigo.random.choice", return_value="Troll das Cavernas"):
+            inimigo = Inimigo.gerar(andar=10)
+        assert isinstance(inimigo, TrollDasCavernas)
 
 
 class TestEfeitosDebuff:

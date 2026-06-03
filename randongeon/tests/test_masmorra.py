@@ -64,6 +64,7 @@ def dummy_inimigo(
     i.chance_veneno          = 0.0
     i.chance_fraqueza        = 0.0
     i.chance_esquiva_debuff  = 0.0
+    i.esquiva                = 0.0
     return i
 
 

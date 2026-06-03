@@ -58,8 +58,15 @@ NOMES_PODEM_ENVENENAR = ("Goblin", "Rato Gigante")
 # Chances por acerto (a calibrar na próxima rodada de balanceamento).
 CHANCE_FRAQUEZA        = 0.30
 CHANCE_ESQUIVA_DEBUFF  = 0.35
-NOMES_APLICAM_FRAQUEZA       = ("Orc",)
-NOMES_APLICAM_ESQUIVA_DEBUFF = ("Troll das Cavernas",)
+
+# ── Evasão e identidade de elites (Lote 2 de balanceamento) ───────────────────
+# `esquiva` = chance de o inimigo DESVIAR do golpe do jogador (≠ chance_miss, que
+# é o inimigo errar o próprio ataque). Combate a monotonia do "mato tudo num
+# golpe". Orc é esperto (esquiva moderada); Banshee é etérea (esquiva alta);
+# Troll é um tanque de HP (sem armadura, sem esquiva).
+ESQUIVA_ORC            = 0.15
+ESQUIVA_BANSHEE        = 0.30
+TROLL_HP_MULTIPLICADOR = 1.6   # Troll tem ~60% mais HP que um elite comum
 
 # Flavor da picada de veneno, por inimigo (Lote 2 de textos). Mantido junto da
 # definição dos inimigos para API e CLI usarem a MESMA mensagem.
@@ -136,7 +143,8 @@ class Inimigo(Entidade):
         chance_drop: float = 0.10,
         chance_veneno: float = 0.0,
         chance_fraqueza: float = 0.0,
-        chance_esquiva_debuff: float = 0.0
+        chance_esquiva_debuff: float = 0.0,
+        esquiva: float = 0.0
     ) -> None:
         # Base (Entidade): valida nome/hp e define nome, hp_max e hp.
         super().__init__(nome, hp)
@@ -162,6 +170,8 @@ class Inimigo(Entidade):
             raise ValueError()
         if not (0.0 <= chance_esquiva_debuff <= 1.0):
             raise ValueError()
+        if not (0.0 <= esquiva <= 1.0):
+            raise ValueError()
 
         self.atk = atk
         self.dificuldade = dificuldade
@@ -178,6 +188,7 @@ class Inimigo(Entidade):
         self.chance_veneno = chance_veneno
         self.chance_fraqueza = chance_fraqueza
         self.chance_esquiva_debuff = chance_esquiva_debuff
+        self.esquiva = esquiva
 
     # esta_vivo() e curar() são herdados de Entidade.
 
@@ -192,6 +203,13 @@ class Inimigo(Entidade):
         dano_efetivo = min(dano_apos_absorcao, self.hp)
         self.hp -= dano_efetivo
         return dano_efetivo
+
+    def tentar_esquivar(self) -> bool:
+        """
+        True se o inimigo DESVIAR do golpe do jogador neste turno (Lote 2).
+        Curto-circuito: se esquiva==0 nem consome a sorte.
+        """
+        return self.esquiva > 0 and random.random() < self.esquiva
 
     def atacar(self, alvo) -> dict:
         """
@@ -304,17 +322,18 @@ class Inimigo(Entidade):
                 classe_escolhida = random.choice(pool_especiais)
                 return classe_escolhida()
 
-            # Elite comum (dif 2) — escala mais que o comum.
+            # Elite (dif 2) — stats escalam com o andar. Orc e Troll têm
+            # identidade própria (Lote 2): viram subclasses; Esqueleto é genérico.
             nome = random.choice(NOMES_DIFICULDADE_2)
             hp = random.randint(8, 15) + round(bonus_hp * ELITE_HP_MULTIPLICADOR)
             atk = random.randint(3, 5) + bonus_atk + 1
             xp = random.randint(25, 50)
             moedas = random.randint(5, 10) + bonus_moedas
-            # Debuffs por nome (Lote B2): Orc enfraquece, Troll reduz esquiva.
-            cf = CHANCE_FRAQUEZA       if nome in NOMES_APLICAM_FRAQUEZA       else 0.0
-            ce = CHANCE_ESQUIVA_DEBUFF if nome in NOMES_APLICAM_ESQUIVA_DEBUFF else 0.0
-            return Inimigo(nome, hp, atk, 2, xp, moedas,
-                           chance_fraqueza=cf, chance_esquiva_debuff=ce)
+            if nome == "Orc":
+                return Orc(hp, atk, xp, moedas)
+            if nome == "Troll das Cavernas":
+                return TrollDasCavernas(hp, atk, xp, moedas)
+            return Inimigo(nome, hp, atk, 2, xp, moedas)   # Esqueleto Guerreiro
 
         # Comum (dif 1) — escala por andar.
         nome = random.choice(NOMES_DIFICULDADE_1)
@@ -403,11 +422,43 @@ class Banshee(Inimigo):
             chance_atordoar=0.30,
             tipo_especial="banshee",
             chance_miss=0.05,
-            chance_drop=0.25
+            chance_drop=0.25,
+            esquiva=ESQUIVA_BANSHEE,   # Lote 2: fantasma etéreo, difícil de acertar
         )
 
     def tabela_loot(self) -> list:
         return LOOT_BANSHEE
+
+
+class Orc(Inimigo):
+    """
+    Elite "inteligente" (Lote 2): além da Fraqueza (B2), tem uma esquiva moderada
+    — desvia de alguns golpes do jogador. Recebe as stats de elite já escaladas
+    por andar (via gerar()).
+    """
+    def __init__(self, hp: int = 12, atk: int = 5, xp: int = 30, moedas: int = 8) -> None:
+        super().__init__(
+            nome="Orc",
+            hp=hp, atk=atk, dificuldade=2, xp=xp, moedas=moedas,
+            chance_fraqueza=CHANCE_FRAQUEZA,
+            esquiva=ESQUIVA_ORC,
+        )
+
+
+class TrollDasCavernas(Inimigo):
+    """
+    Elite tanque de HP (Lote 2): tem MUITO mais vida que os outros, mas SEM
+    armadura (diferente do Golem, que mitiga por absorção). Aguenta dano
+    sustentado; cada golpe entra inteiro. Mantém o debuff de esquiva (maça, B2).
+    """
+    def __init__(self, hp: int = 14, atk: int = 5, xp: int = 30, moedas: int = 8) -> None:
+        super().__init__(
+            nome="Troll das Cavernas",
+            hp=round(hp * TROLL_HP_MULTIPLICADOR), atk=atk, dificuldade=2,
+            xp=xp, moedas=moedas,
+            chance_esquiva_debuff=CHANCE_ESQUIVA_DEBUFF,
+            absorcao_dano=0,   # sem armadura — é tanque por bolha de HP
+        )
 
 
 # ── Bando de Goblins: combate sequencial (Lote E) ─────────────────────────────
