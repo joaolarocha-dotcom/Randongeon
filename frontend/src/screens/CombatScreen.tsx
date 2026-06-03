@@ -24,6 +24,7 @@ import { useAnimatedHP } from "../hooks/useAnimatedHP";
 export function CombatScreen() {
   const jogador = useGameStore((s) => s.jogador);
   const inimigo = useGameStore((s) => s.inimigo);
+  const bossEnraged = useGameStore((s) => s.bossEnraged);
   const animPhase = useGameStore((s) => s.animPhase);
   const currentDialog = useGameStore((s) => s.currentDialog);
   const dialogQueue = useGameStore((s) => s.dialogQueue);
@@ -129,7 +130,7 @@ export function CombatScreen() {
       <BattleStage bgImage={bgImage}>
         {/* Status do inimigo no topo-esquerdo */}
         <div style={{ position: "absolute", top: 8, left: 8 }}>
-          <EnemyStatusBox inimigo={inimigo} displayedHP={animatedEnemyHP} />
+          <EnemyStatusBox inimigo={inimigo} displayedHP={animatedEnemyHP} enraged={bossEnraged} />
         </div>
 
         {/* Sprite do inimigo no topo-direito — escala menor para criar perspectiva */}

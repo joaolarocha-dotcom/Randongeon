@@ -170,6 +170,8 @@ interface GameStore {
   displayedPlayerHP: number;
   /** HP exibido (anima rumo a inimigo.hp). */
   displayedEnemyHP: number;
+  /** Lote 4b: boss em 2ª fase/fúria (Coração da Masmorra renasceu). */
+  bossEnraged: boolean;
   /** Fila de mensagens a exibir na BattleDialog. */
   dialogQueue: string[];
   /** Mensagem atual sendo digitada (null = nenhuma). */
@@ -236,6 +238,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   animPhase: "idle",
   displayedPlayerHP: 0,
   displayedEnemyHP: 0,
+  bossEnraged: false,
   dialogQueue: [],
   currentDialog: null,
   floorTransitionAndar: null,
@@ -341,6 +344,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({
           inimigo,
           displayedEnemyHP: inimigo.hp_max,
+          bossEnraged: false,        // Lote 4b: começa sem fúria; só após renascer
           screen: "combat",
           loading: false,
           animPhase: "intro",
@@ -581,6 +585,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       animPhase: "idle",
       displayedPlayerHP: 0,
       displayedEnemyHP: 0,
+      bossEnraged: false,
       dialogQueue: [],
       currentDialog: null,
       floorTransitionAndar: null,
@@ -747,6 +752,22 @@ function handleCombatResult(
       });
       audio.playJingle("bgm_game_over");
     }, 3500);
+  } else if (res.resultado === "renasceu") {
+    // Lote 4b: o Coração da Masmorra renasceu (2ª fase). NÃO abrir a tela de
+    // vitória — a luta continua. O boss volta a ~50% (a barra sobe rumo a
+    // inimigo.hp) e entra em fúria (badge no status do inimigo).
+    set({ animPhase: "enemy_action", bossEnraged: true });
+    appendDialog(set, get, mensagens);
+    audio.playSfx("sfx_enemy_defeat");                 // o golpe derruba o boss…
+    scheduleTimeout(() => audio.playSfx("sfx_level_up"), 450);  // …e ele ressurge em fúria
+    // Volta ao idle quando o diálogo esvaziar (fallback, igual ao "continua").
+    scheduleTimeout(() => {
+      const s = get();
+      if (s.screen === "combat" && s.inimigo && s.inimigo.hp > 0 &&
+          s.jogador && s.jogador.hp > 0 && s.animPhase !== "idle") {
+        set({ animPhase: "idle" });
+      }
+    }, 1800);
   } else if (res.resultado === "fuga") {
     set({ animPhase: "flee" });
     appendDialog(set, get, mensagens);
