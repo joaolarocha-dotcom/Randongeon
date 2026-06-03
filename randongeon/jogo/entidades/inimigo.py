@@ -254,8 +254,9 @@ class Inimigo(Entidade):
         if subiu_atk > 0:
             self.atk += subiu_atk
 
-        # Erro: alguns tipos erram muito (Horda) ou quase nunca (Banshee).
-        if random.random() < self.chance_miss:
+        # Erro: chance própria do inimigo + evasão passiva do alvo (dom Ágil, Lote 3).
+        miss = self.chance_miss + getattr(alvo, "evasao_passiva", 0.0)
+        if random.random() < miss:
             return {"dano": 0, "errou": True, "curou": 0, "atordoou": False,
                     "envenenou": False, "fraqueza": False, "esquiva_reduzida": False,
                     "subiu_atk": subiu_atk}

@@ -67,6 +67,10 @@ class Jogador(Entidade):
         self.moedas = moedas
         self.inventario: list = []
         self.chance_critico = self.CHANCE_CRITICO_BASE   # Lote crítico
+        # ── Dom de slot único (Lote 3) — passivos ───────────────────────────────
+        self.dom: str | None = None   # id do dom escolhido (None = nenhum)
+        self.lifesteal = 0.0          # % do dano causado que cura (Sanguessuga)
+        self.evasao_passiva = 0.0     # chance extra de o inimigo errar (Ágil)
         # veneno_turnos agora é uma @property derivada dos efeitos (Lote B2).
 
     # ── Vida (esta_vivo e curar são herdados de Entidade) ───────────────────────
@@ -231,6 +235,14 @@ class Jogador(Entidade):
         if random.random() < self.chance_critico:
             return int(dano * self.MULTIPLICADOR_CRITICO), True
         return dano, False
+
+    def aplicar_lifesteal(self, dano_causado: int) -> int:
+        """
+        Cura uma fração do dano causado, se o dom Sanguessuga estiver ativo
+        (Lote 3). Retorna o HP curado (0 se não houver lifesteal)."""
+        if self.lifesteal <= 0 or dano_causado <= 0:
+            return 0
+        return self.curar(max(1, int(dano_causado * self.lifesteal)))
 
     # ── Pontuação (comparativo de competição) ─────────────────────────────────
 

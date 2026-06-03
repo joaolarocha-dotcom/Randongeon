@@ -254,8 +254,8 @@ def _checar_vitoria_campanha(
 
 @app.post("/game/new", response_model=NewGameResponse)
 def new_game(req: NewGameRequest):
-    """Lote 2A: aceita 'modo' em vez de 'game_mode'."""
-    session_id, state = create_session(req.nome.strip(), req.modo)
+    """Lote 2A: aceita 'modo'. Lote 3: aceita 'dom' (id do dom escolhido)."""
+    session_id, state = create_session(req.nome.strip(), req.modo, req.dom)
     return NewGameResponse(
         session_id=session_id,
         jogador=_jogador_status(state),
@@ -478,6 +478,9 @@ def combat_attack(session_id: str):
         dano_jogador = inimigo.receber_dano(dano_base)
         mensagem = (f"💥 Acerto CRÍTICO! Você causou {dano_jogador} de dano."
                     if critico else f"Você causou {dano_jogador} de dano.")
+        curou = jogador.aplicar_lifesteal(dano_jogador)   # dom Sanguessuga (Lote 3)
+        if curou:
+            mensagem += f" Você drenou {curou} de vida."
         # Lote F: REMOVIDO o heal aqui — o Nosferatu não deve se curar quando
         # APANHA. O lifesteal correto está em _processar_ataque_inimigo (cura
         # quando o inimigo ataca o jogador).
@@ -552,6 +555,9 @@ def combat_dodge(session_id: str):
             dano_jogador = inimigo.receber_dano(dano_base)
             mensagem += (f" Contra-atacou com CRÍTICO por {dano_jogador} de dano!"
                          if critico else f" Contra-atacou por {dano_jogador} de dano.")
+            curou = jogador.aplicar_lifesteal(dano_jogador)   # dom Sanguessuga (Lote 3)
+            if curou:
+                mensagem += f" Drenou {curou} de vida."
             # Lote F: REMOVIDO o heal aqui (vampiro não cura ao apanhar).
 
         if inimigo.hp <= 0:
@@ -865,6 +871,9 @@ def save_game(session_id: str):
             "moedas":    j.moedas,
             "veneno_turnos": getattr(j, "veneno_turnos", 0),  # ← Lote save: preserva o veneno
             "chance_critico": getattr(j, "chance_critico", 0.10),  # ← Lote crítico
+            "dom": getattr(j, "dom", None),                   # ← Lote 3: dom + passivos
+            "lifesteal": getattr(j, "lifesteal", 0.0),
+            "evasao_passiva": getattr(j, "evasao_passiva", 0.0),
             "inventario": inventario_serial,
         },
     )
@@ -897,6 +906,10 @@ def load_game(req: LoadGameRequest):
             jogador.envenenar(vt)
         # Lote crítico: restaura a chance de crítico (relevante p/ o dom Sortudo).
         jogador.chance_critico = float(jdata.get("chance_critico", Jogador.CHANCE_CRITICO_BASE))
+        # Lote 3: restaura o dom e seus passivos (stats já vêm baked no save).
+        jogador.dom = jdata.get("dom")
+        jogador.lifesteal = float(jdata.get("lifesteal", 0.0))
+        jogador.evasao_passiva = float(jdata.get("evasao_passiva", 0.0))
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Dados do save inválidos: {exc}")
 
