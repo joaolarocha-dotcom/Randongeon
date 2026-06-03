@@ -15,7 +15,37 @@ from jogo.entidades.inimigo import (
     LOOT_HORDA,
 )
 from jogo.entidades.jogador import Jogador
+from jogo.entidades.entidade import Entidade
 from jogo.sistemas.masmorra import Masmorra
+
+
+class TestEntidadeBase:
+    """B1: Jogador e Inimigo herdam de Entidade(ABC) — vida/cura compartilhadas,
+    receber_dano() polimórfico, e a base é abstrata (não instanciável)."""
+
+    def test_jogador_e_inimigo_sao_entidades(self):
+        assert isinstance(Jogador("H", hp=20, atk=5), Entidade)
+        assert isinstance(
+            Inimigo("G", hp=5, atk=2, dificuldade=1, xp=1, moedas=1), Entidade
+        )
+
+    def test_entidade_e_abstrata(self):
+        with pytest.raises(TypeError):
+            Entidade("X", 10)   # receber_dano é abstrato → não instanciável
+
+    def test_curar_e_esta_vivo_herdados(self):
+        j = Jogador("H", hp=20, atk=5)
+        j.receber_dano(5)
+        assert j.curar(3) == 3
+        assert j.hp == 18
+        assert j.esta_vivo()
+
+    def test_receber_dano_polimorfico(self):
+        # Inimigo desconta armadura; Jogador não.
+        golem = GolemDePedra(); golem.hp = 20
+        assert golem.receber_dano(5) == 5 - golem.absorcao_dano
+        j = Jogador("H", hp=20, atk=5)
+        assert j.receber_dano(5) == 5
 
 def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.hp_max = inimigo.hp

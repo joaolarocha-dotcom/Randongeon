@@ -1,6 +1,7 @@
 import random
 from typing import Optional
 
+from jogo.entidades.entidade import Entidade
 from jogo.entidades.item import Item
 
 # "Aranha Gigante" foi removida: era um resquício do Lote F (o nome do Bando de
@@ -96,7 +97,7 @@ LOOT_HORDA = [
     Item("Adaga Enferrujada",      bonus_atk=1),
 ]
 
-class Inimigo:
+class Inimigo(Entidade):
     def __init__(
         self,
         nome: str,
@@ -115,10 +116,8 @@ class Inimigo:
         chance_drop: float = 0.10,
         chance_veneno: float = 0.0
     ) -> None:
-        if not nome or not isinstance(nome, str) or not nome.strip():
-            raise ValueError()
-        if hp <= 0:
-            raise ValueError()
+        # Base (Entidade): valida nome/hp e define nome, hp_max e hp.
+        super().__init__(nome, hp)
         if atk <= 0:
             raise ValueError()
         if dificuldade < 1:
@@ -138,9 +137,6 @@ class Inimigo:
         if not (0.0 <= chance_veneno <= 1.0):
             raise ValueError()
 
-        self.nome = nome
-        self.hp = hp
-        self.hp_max = hp
         self.atk = atk
         self.dificuldade = dificuldade
         self.xp = xp
@@ -155,23 +151,19 @@ class Inimigo:
         self.chance_drop = chance_drop
         self.chance_veneno = chance_veneno
 
-    def esta_vivo(self) -> bool:
-        return self.hp > 0
+    # esta_vivo() e curar() são herdados de Entidade.
 
     def receber_dano(self, dano: int) -> int:
+        """
+        Override (Polimorfismo): o Inimigo desconta a armadura (absorcao_dano)
+        antes de aplicar o dano — diferente do Jogador, que sofre direto.
+        """
         if dano < 0:
             raise ValueError()
         dano_apos_absorcao = max(0, dano - self.absorcao_dano)
         dano_efetivo = min(dano_apos_absorcao, self.hp)
         self.hp -= dano_efetivo
         return dano_efetivo
-
-    def curar(self, quantidade: int) -> int:
-        if quantidade < 0:
-            raise ValueError()
-        hp_antes = self.hp
-        self.hp = min(self.hp_max, self.hp + quantidade)
-        return self.hp - hp_antes
 
     def atacar(self, alvo) -> dict:
         """
