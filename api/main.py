@@ -56,7 +56,7 @@ from schemas import (
 )
 from session import GameState, create_session, delete_session, get_session, load_session
 from jogo.entidades.inimigo import (
-    Inimigo, BandoDeGoblins,
+    Inimigo, BandoDeGoblins, MENSAGEM_RENASCIMENTO,
     mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
 )
 from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
@@ -397,7 +397,24 @@ def _resolver_derrota_inimigo(
     'proximo' com o próximo inimigo (a luta continua). Caso contrário, encerra
     com 'vitoria' (ou vitória de campanha, se for o boss final).
     Centraliza a lógica antes duplicada em attack e dodge.
+
+    Lote 4: ANTES de recompensar, pergunta ao inimigo se ele renasce
+    (tentar_renascer() — polimórfico). O Coração da Masmorra volta com 50% do HP
+    e em fúria na 1ª morte: retorna 'renasceu' e a luta continua. Só a 2ª morte
+    segue para vitória/vitória de campanha.
     """
+    if inimigo.tentar_renascer():
+        return CombatActionResponse(
+            resultado="renasceu",
+            mensagem=mensagem + " " + MENSAGEM_RENASCIMENTO,
+            dano_jogador=dano_jogador,
+            dano_inimigo=0,
+            jogador=_jogador_status(state),
+            inimigo=_inimigo_info(inimigo),   # já a 50% do HP e com ATK de fúria
+            miss_jogador=miss_jogador,
+            miss_inimigo=False,
+        )
+
     jogador = state.masmorra.jogador
     jogador.ganhar_xp(inimigo.xp)
     jogador.ganhar_moedas(inimigo.moedas)

@@ -297,6 +297,21 @@ class Inimigo(Entidade):
         """
         return LOOT_PADRAO
 
+    def tentar_renascer(self) -> bool:
+        """
+        Hook de "segunda fase" (Lote 4 — Template Method/Polimorfismo).
+
+        O fluxo de morte do combate (API e CLI) chama, ao zerar o HP do inimigo,
+        `inimigo.tentar_renascer()` SEM saber o tipo concreto. A base devolve
+        False — inimigos comuns e bosses normais morrem de vez. Subclasses com
+        2ª fase (ver `CoracaoDaMasmorra`) SOBRESCREVEM este hook para ressurgir.
+
+        Retorna:
+            bool: True se o inimigo voltou à vida nesta morte (a luta continua);
+                  False se está realmente derrotado.
+        """
+        return False
+
     @staticmethod
     def gerar(andar: int = 1) -> "Inimigo":
         if andar < 1:
@@ -468,6 +483,63 @@ class TrollDasCavernas(Inimigo):
             absorcao_dano=0,   # sem armadura — é tanque por bolha de HP
             chance_drop=CHANCE_DROP_PADRAO,
         )
+
+
+# ── Coração da Masmorra: boss de 2 fases (Lote 4) ─────────────────────────────
+# O boss final da campanha (andar 20) não morre na primeira vez: ao zerar o HP
+# ele RENASCE uma única vez, volta com metade da vida e entra em FÚRIA (ATK
+# maior). Só a SEGUNDA morte encerra a campanha. Números em CONSTANTES tunáveis;
+# a fúria é calibrada por simulação Monte Carlo (★ Recalibração do roadmap).
+CORACAO_CURA_RENASCIMENTO = 0.50   # ao renascer, volta com 50% do HP máximo
+# Fúria: ATK da 2ª fase. Calibrado por Monte Carlo (sim_boss_fase2.py): ×1.25 dá
+# ATK 21 e mantém o win-rate do boss em ~36% (a 2ª fase sozinha já derruba de
+# 85% para ~43%; a fúria ajusta o resto). TUNÁVEL.
+CORACAO_FURIA_ATK_MULT    = 1.25
+
+MENSAGEM_RENASCIMENTO = (
+    "O Coração da Masmorra estilhaça-se em mil ecos… e se recompõe. As paredes "
+    "pulsam em fúria e ele renasce, metade do que era, o dobro do que odeia. "
+    "Isto ainda não acabou."
+)
+
+
+class CoracaoDaMasmorra(Inimigo):
+    """
+    Boss final de 2 fases (Lote 4).
+
+    Herança: É UM Inimigo — herda todo o combate (atacar/receber_dano/loot) e
+    recebe as stats já escaladas via `gerar_boss()`, então os testes que travam
+    HP/ATK/XP/moedas/nome do boss do andar 20 continuam valendo.
+
+    Polimorfismo + Template Method: SOBRESCREVE o hook `tentar_renascer()` da
+    base. O fluxo de morte chama o hook sem `if tipo`: a base devolve False, o
+    Coração devolve True na primeira morte (renasce 1×) e False na segunda.
+    """
+
+    def __init__(self, hp: int, atk: int, xp: int, moedas: int) -> None:
+        super().__init__(
+            nome="Coração da Masmorra",
+            hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas,
+        )
+        self._ja_renasceu = False
+
+    @property
+    def ja_renasceu(self) -> bool:
+        """True depois que o Coração já usou seu renascimento (está na 2ª fase)."""
+        return self._ja_renasceu
+
+    def tentar_renascer(self) -> bool:
+        """
+        Renasce UMA vez ao zerar o HP: cura 50% do HP máx e entra em fúria (ATK
+        maior). Idempotente após a 1ª morte — a 2ª morte devolve False e a
+        campanha é vencida.
+        """
+        if self._ja_renasceu or self.esta_vivo():
+            return False
+        self._ja_renasceu = True
+        self.curar(max(1, round(self.hp_max * CORACAO_CURA_RENASCIMENTO)))
+        self.atk = max(self.atk + 1, round(self.atk * CORACAO_FURIA_ATK_MULT))
+        return True
 
 
 # ── Bando de Goblins: combate sequencial (Lote E) ─────────────────────────────
