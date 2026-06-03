@@ -471,6 +471,8 @@ def combat_attack(session_id: str):
     elif random.random() < CHANCE_MISS_JOGADOR:
         miss_jogador = True
         mensagem = "Você errou o ataque!"
+    elif inimigo.tentar_esquivar():
+        mensagem = f"{inimigo.nome} desviou do seu golpe!"   # Lote 2: evasão do inimigo
     else:
         dano_base, critico = jogador.rolar_dano()
         dano_jogador = inimigo.receber_dano(dano_base)
@@ -543,6 +545,8 @@ def combat_dodge(session_id: str):
         if random.random() < CHANCE_MISS_JOGADOR:
             miss_jogador = True
             mensagem += " Mas errou o contra-ataque!"
+        elif inimigo.tentar_esquivar():
+            mensagem += f" Mas o {inimigo.nome} desviou do contra-ataque!"
         else:
             dano_base, critico = jogador.rolar_dano()
             dano_jogador = inimigo.receber_dano(dano_base)

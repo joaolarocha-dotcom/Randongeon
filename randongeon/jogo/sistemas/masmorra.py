@@ -108,8 +108,9 @@ class Masmorra:
         while self.jogador.esta_vivo() and inimigo.esta_vivo():
             if not jogador_atordoado:
                 if not random.random() < CHANCE_MISS_JOGADOR:
-                    dano_base, _ = self.jogador.rolar_dano()
-                    inimigo.receber_dano(dano_base)
+                    if not inimigo.tentar_esquivar():      # Lote 2: inimigo pode desviar
+                        dano_base, _ = self.jogador.rolar_dano()
+                        inimigo.receber_dano(dano_base)
             else:
                 jogador_atordoado = False
 
@@ -249,18 +250,26 @@ class Masmorra:
                 print()
 
                 if acao == "1":
-                    atk, critico = self.jogador.rolar_dano()
-                    dano = inimigo.receber_dano(atk)
-                    if critico:
-                        print("💥 Acerto CRÍTICO!")
-                    _imprimir_dano_jogador(atk, dano, inimigo)
-                    time.sleep(0.2)
+                    if inimigo.tentar_esquivar():
+                        print(f"{inimigo.nome} desviou do seu golpe!\n")
+                        time.sleep(0.2)
+                    else:
+                        atk, critico = self.jogador.rolar_dano()
+                        dano = inimigo.receber_dano(atk)
+                        if critico:
+                            print("💥 Acerto CRÍTICO!")
+                        _imprimir_dano_jogador(atk, dano, inimigo)
+                        time.sleep(0.2)
 
                 elif acao == "2":
                     print("Você tenta se esquivar e contra-atacar...\n")
                     time.sleep(0.2)
 
                     if random.random() <= self.jogador.esquiva_efetiva():
+                        if inimigo.tentar_esquivar():
+                            print(f"Você esquivou, mas o {inimigo.nome} desviou do seu contra-ataque!\n")
+                            time.sleep(0.2)
+                            continue
                         atk, critico = self.jogador.rolar_dano()
                         dano = inimigo.receber_dano(atk)
                         if critico:

@@ -85,6 +85,7 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.chance_veneno          = 0.0    # Lote M
     inimigo.chance_fraqueza        = 0.0    # Lote B2
     inimigo.chance_esquiva_debuff  = 0.0    # Lote B2
+    inimigo.esquiva                = 0.0    # Lote 2 (evasão)
 
 
 @pytest.fixture

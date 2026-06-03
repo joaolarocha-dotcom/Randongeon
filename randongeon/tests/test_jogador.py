@@ -291,6 +291,7 @@ class TestGanharMoedas:
         dummy.chance_veneno = 0.0
         dummy.chance_fraqueza = 0.0
         dummy.chance_esquiva_debuff = 0.0
+        dummy.esquiva = 0.0
 
         m.resolver_combate(dummy)
         assert j.moedas == 10
