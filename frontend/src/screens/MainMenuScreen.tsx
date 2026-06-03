@@ -9,6 +9,7 @@ export function MainMenuScreen() {
   const goToLoadGame = useGameStore((s) => s.goToLoadGame);
   const goToSettings = useGameStore((s) => s.goToSettings);
   const goToLeaderboard = useGameStore((s) => s.goToLeaderboard);
+  const error = useGameStore((s) => s.error);
   const [logoSrc, setLogoSrc] = useState(LOGO_SPRITE.src);
 
   useEffect(() => {
@@ -46,6 +47,19 @@ export function MainMenuScreen() {
       <p style={{ fontSize: "var(--font-size-sm)", color: "#000", textShadow: "1px 1px 0 #fff" }}>
         A Masmorra Sem Fim
       </p>
+
+      {error && (
+        <p
+          style={{
+            fontSize: "var(--font-size-xs)",
+            color: "var(--hp-red)",
+            textAlign: "center",
+            maxWidth: "80%",
+          }}
+        >
+          {error}
+        </p>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, minWidth: 220 }}>
         <button className="poke-btn" onClick={click(() => goToTitle("story"))}>
