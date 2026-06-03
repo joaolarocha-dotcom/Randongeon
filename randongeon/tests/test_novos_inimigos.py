@@ -474,6 +474,18 @@ class TestAtacar:
         rel = comum.atacar(alvo)
         assert rel["envenenou"] is False
 
+    def test_flavor_veneno_rato(self):
+        from jogo.entidades.inimigo import mensagem_veneno
+        assert "Rato Gigante" in mensagem_veneno("Rato Gigante")
+
+    def test_flavor_veneno_goblin(self):
+        from jogo.entidades.inimigo import mensagem_veneno
+        assert "faca" in mensagem_veneno("Goblin").lower()
+
+    def test_flavor_veneno_default(self):
+        from jogo.entidades.inimigo import mensagem_veneno
+        assert "ENVENENADO" in mensagem_veneno("Inimigo Desconhecido")
+
     def test_gerar_goblin_pode_envenenar(self):
         from jogo.entidades.inimigo import CHANCE_VENENO
         with patch("jogo.entidades.inimigo.random.random", return_value=0.99), \

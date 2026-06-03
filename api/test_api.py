@@ -257,6 +257,27 @@ class TestBandoSequencial:
         assert state.fila_inimigos == []
         assert state.inimigo_ativo is None
 
+    def test_texto_diferencia_goblin_individual_do_bando(self):
+        # Lote 2 textos: goblin intermediário cai um por um; o "Bando foi
+        # derrotado" só aparece quando o ÚLTIMO tomba.
+        sid = _nova_sessao("story")["session_id"]
+        self._montar_bando(sid)
+
+        r1 = client.post(f"/game/{sid}/combat/attack").json()
+        assert r1["resultado"] == "proximo"
+        assert "O goblin foi derrotado" in r1["mensagem"]
+        assert "Outro goblin avança" in r1["mensagem"]
+        assert "Bando de Goblins foi derrotado" not in r1["mensagem"]
+
+        ultima_msg = r1["mensagem"]
+        for _ in range(10):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+            ultima_msg = r["mensagem"]
+            if r["resultado"] in ("vitoria", "derrota"):
+                break
+        assert r["resultado"] == "vitoria"
+        assert "Bando de Goblins foi derrotado" in ultima_msg
+
 
 # ── Correções do Lote F ───────────────────────────────────────────────────────
 

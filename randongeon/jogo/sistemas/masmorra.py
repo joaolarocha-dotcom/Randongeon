@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from jogo.entidades.jogador import Jogador
-from jogo.entidades.inimigo import Inimigo, LOOT_PADRAO
+from jogo.entidades.inimigo import Inimigo, LOOT_PADRAO, mensagem_veneno
 from jogo.entidades.item    import Item
 from jogo.sistemas.gerador  import GeradorSala
 from jogo.entidades.loja    import Loja
@@ -343,10 +343,7 @@ class Masmorra:
 
                 if relatorio["envenenou"]:
                     self.jogador.envenenar()
-                    print(
-                        "A lâmina suja te corta — você foi ENVENENADO! "
-                        "O veneno vai corroer sua vida pelos próximos turnos.\n"
-                    )
+                    print(mensagem_veneno(inimigo.nome) + "\n")
                     time.sleep(0.4)
 
         if not self.jogador.esta_vivo():
