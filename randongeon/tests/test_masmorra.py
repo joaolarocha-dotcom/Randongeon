@@ -61,6 +61,7 @@ def dummy_inimigo(
     i.tipo_especial       = None
     i.chance_miss         = 0.10
     i.chance_drop         = 0.10
+    i.chance_veneno       = 0.0
     return i
 
 

@@ -28,6 +28,7 @@ class Jogador:
     XP_BASE_NIVEL = 10    # fator-base do custo de XP (fórmula triangular)
     ESQ_POR_NIVEL = 0.005 # pequeno ganho de esquiva por nível
     ESQ_MAXIMA    = 0.6   # teto de esquiva por progressão de nível
+    VENENO_DURACAO = 3    # turnos que o veneno dura ao ser aplicado (Lote M)
 
     def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3, moedas: int = 0) -> None:
         """
@@ -63,6 +64,7 @@ class Jogador:
         self.esq_max = 1
         self.moedas = moedas
         self.inventario: list = []
+        self.veneno_turnos = 0   # turnos de veneno restantes (Lote M)
 
     # ── Vida ──────────────────────────────────────────────────────────────────
 
@@ -183,8 +185,46 @@ class Jogador:
             self.hp_max += self.HP_POR_NIVEL
             self.hp      = self.hp_max                       # cura total ao subir
             self.esq     = min(self.ESQ_MAXIMA, self.esq + self.ESQ_POR_NIVEL)
+            self.veneno_turnos = 0                           # subir de nível purga o veneno (Lote M)
             niveis_ganhos += 1
         return niveis_ganhos
+
+    # ── Veneno (DoT — Lote M) ───────────────────────────────────────────────────
+
+    @property
+    def envenenado(self) -> bool:
+        """True se o jogador ainda tem turnos de veneno ativos."""
+        return self.veneno_turnos > 0
+
+    def envenenar(self, turnos: int = None) -> None:
+        """
+        Aplica (ou renova) o veneno. Não acumula além de VENENO_DURACAO: uma nova
+        picada apenas RENOVA a duração para o teto, em vez de empilhar dano.
+
+        O estado vive no jogador (não no combate), então PERSISTE entre andares
+        até os turnos se esgotarem ou o jogador se curar.
+        """
+        if turnos is None:
+            turnos = self.VENENO_DURACAO
+        if turnos < 0:
+            raise ValueError("Duração de veneno não pode ser negativa.")
+        self.veneno_turnos = max(self.veneno_turnos, min(turnos, self.VENENO_DURACAO))
+
+    def curar_veneno(self) -> None:
+        """Remove o veneno (usado por poções de cura e ao subir de nível)."""
+        self.veneno_turnos = 0
+
+    def tick_veneno(self) -> int:
+        """
+        Processa um turno de veneno: causa 1 de dano e consome 1 turno.
+
+        Retorna:
+            int: dano sofrido pelo veneno neste turno (0 se não estava envenenado).
+        """
+        if self.veneno_turnos <= 0:
+            return 0
+        self.veneno_turnos -= 1
+        return self.receber_dano(1)
 
     # ── Pontuação (comparativo de competição) ─────────────────────────────────
 

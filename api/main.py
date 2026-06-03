@@ -111,6 +111,7 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         moedas=j.moedas,
         andar=state.masmorra.andar,      # ← novo Lote 2A
         inventario=inventario,            # ← novo Lote 2A
+        veneno_turnos=getattr(j, "veneno_turnos", 0),  # ← Lote M
     )
 
 
@@ -169,8 +170,12 @@ def _processar_ataque_inimigo(
 ) -> tuple[int, bool, str]:
     jogador = state.masmorra.jogador
 
+    # Veneno de turnos ANTERIORES age primeiro (Lote M); a picada nova desta
+    # rodada só começa a corroer no próximo turno.
+    dano_veneno = jogador.tick_veneno()
+
     # Turno do inimigo centralizado em Inimigo.atacar() (jogo). A API só monta
-    # as mensagens do log e atualiza o estado da sessão (atordoamento).
+    # as mensagens do log e atualiza o estado da sessão (atordoamento/veneno).
     relatorio = inimigo.atacar(jogador)
 
     if relatorio["errou"]:
@@ -185,6 +190,13 @@ def _processar_ataque_inimigo(
         if relatorio["atordoou"]:
             state.jogador_atordoado = True
             mensagem += f" {jogador.nome} foi atordoado!"
+
+        if relatorio["envenenou"]:
+            jogador.envenenar()
+            mensagem += f" {jogador.nome} foi envenenado!"
+
+    if dano_veneno > 0:
+        mensagem += f" O veneno corrói {dano_veneno} de vida."
 
     return relatorio["dano"], relatorio["errou"], mensagem
 

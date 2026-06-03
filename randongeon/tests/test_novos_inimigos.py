@@ -25,6 +25,7 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.bonus_atk_por_turno = 0
     inimigo.chance_atordoar = 0.0
     inimigo.tipo_especial = None
+    inimigo.chance_veneno = 0.0
 
 def _dummy(hp=1, atk=1, xp=10, moedas=5) -> Inimigo:
     i = Inimigo.__new__(Inimigo)
@@ -457,6 +458,28 @@ class TestAtacar:
         rel = banshee.atacar(alvo)
         assert rel["errou"] is False
         assert rel["atordoou"] is True
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.5)
+    def test_envenena_ao_acertar_quando_tem_chance(self, _rand):
+        env = Inimigo("Goblin", hp=5, atk=3, dificuldade=1, xp=10, moedas=2, chance_veneno=1.0)
+        alvo = Jogador("Herói", hp=20, atk=5)
+        rel = env.atacar(alvo)
+        assert rel["errou"] is False
+        assert rel["envenenou"] is True
+
+    @patch("jogo.entidades.inimigo.random.random", return_value=0.5)
+    def test_sem_chance_veneno_nao_envenena(self, _rand):
+        comum = Inimigo("Goblin", hp=5, atk=3, dificuldade=1, xp=10, moedas=2)
+        alvo = Jogador("Herói", hp=20, atk=5)
+        rel = comum.atacar(alvo)
+        assert rel["envenenou"] is False
+
+    def test_gerar_goblin_pode_envenenar(self):
+        from jogo.entidades.inimigo import CHANCE_VENENO
+        with patch("jogo.entidades.inimigo.random.random", return_value=0.99), \
+             patch("jogo.entidades.inimigo.random.choice", return_value="Goblin"):
+            inimigo = Inimigo.gerar(andar=1)
+        assert inimigo.chance_veneno == CHANCE_VENENO
 
     @patch("jogo.entidades.inimigo.random.random", return_value=0.99)
     def test_escala_atk_por_turno(self, _rand):

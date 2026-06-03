@@ -45,6 +45,7 @@ class JogadorStatus(BaseModel):
     moedas:    int
     andar:     int                    = 0   # ← novo Lote 2A
     inventario: List[ItemInventario]  = []  # ← novo Lote 2A
+    veneno_turnos: int                = 0   # ← Lote M: turnos de veneno restantes
 
 
 class InimigoInfo(BaseModel):

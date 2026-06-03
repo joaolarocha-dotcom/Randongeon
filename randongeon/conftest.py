@@ -82,6 +82,7 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.tipo_especial       = None
     inimigo.chance_miss         = 0.10   # v3.1
     inimigo.chance_drop         = 0.10   # v3.1
+    inimigo.chance_veneno       = 0.0    # Lote M
 
 
 @pytest.fixture
