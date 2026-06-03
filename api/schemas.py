@@ -90,6 +90,7 @@ class LojaInfo(BaseModel):
 class NewGameRequest(BaseModel):
     nome: str
     modo: str = "story"              # "story" | "infinite"
+    dom: Optional[str] = None        # Lote 3: dom escolhido (id) ou None
 
 
 class NewGameResponse(BaseModel):

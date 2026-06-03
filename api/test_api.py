@@ -408,3 +408,28 @@ class TestVitoriaCampanha:
         # score = pontuacao + andar*100
         assert r["jogador"]["score"] == state.masmorra.calcular_score()
         assert r["jogador"]["score"] >= 500   # pelo menos o bônus do andar 5
+
+
+# ── Dom de slot único (Lote 3) ────────────────────────────────────────────────
+
+class TestDomAPI:
+    def test_new_game_com_dom_aplica_passivo(self):
+        r = client.post("/game/new", json={"nome": "H", "modo": "story", "dom": "sanguessuga"}).json()
+        jog = session_mod.get_session(r["session_id"]).masmorra.jogador
+        assert jog.dom == "sanguessuga"
+        assert jog.lifesteal == 0.10
+
+    def test_new_game_sem_dom_ok(self):
+        r = client.post("/game/new", json={"nome": "H", "modo": "story"}).json()
+        jog = session_mod.get_session(r["session_id"]).masmorra.jogador
+        assert jog.dom is None
+
+    def test_save_load_preserva_dom(self):
+        r = client.post("/game/new", json={"nome": "H", "modo": "story", "dom": "agil"}).json()
+        sid = r["session_id"]
+        save = client.get(f"/game/{sid}/save").json()
+        assert save["jogador"]["dom"] == "agil"
+        load = client.post("/game/load", json=save).json()
+        jl = session_mod.get_session(load["session_id"]).masmorra.jogador
+        assert jl.dom == "agil"
+        assert jl.evasao_passiva == 0.10

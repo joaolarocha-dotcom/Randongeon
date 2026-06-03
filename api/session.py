@@ -25,6 +25,7 @@ sys.path.insert(
 from jogo.entidades.inimigo import Inimigo
 from jogo.entidades.item    import Item
 from jogo.entidades.jogador import Jogador
+from jogo.entidades.dom     import aplicar_dom
 from jogo.sistemas.masmorra import Masmorra
 
 _ANDAR_MAX_STORY: int = 20
@@ -58,13 +59,15 @@ def _itens_iniciais() -> list[Item]:
 def create_session(
     nome: str,
     modo: str = "story",
+    dom: Optional[str] = None,
 ) -> tuple[str, GameState]:
-    """Cria uma sessão nova a partir do nome do herói e do modo."""
+    """Cria uma sessão nova a partir do nome do herói, do modo e do dom (Lote 3)."""
     if modo not in _MODOS_VALIDOS:
         modo = "story"
 
     session_id = str(uuid.uuid4())
     jogador    = Jogador(nome)
+    aplicar_dom(jogador, dom)             # Lote 3: dom de slot único (no-op se None)
     for item in _itens_iniciais():        # Lote F: inventário inicial
         jogador.adicionar_item(item)
     andar_max  = _ANDAR_MAX_STORY if modo == "story" else None

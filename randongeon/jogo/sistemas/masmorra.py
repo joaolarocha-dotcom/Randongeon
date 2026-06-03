@@ -110,7 +110,8 @@ class Masmorra:
                 if not random.random() < CHANCE_MISS_JOGADOR:
                     if not inimigo.tentar_esquivar():      # Lote 2: inimigo pode desviar
                         dano_base, _ = self.jogador.rolar_dano()
-                        inimigo.receber_dano(dano_base)
+                        dano = inimigo.receber_dano(dano_base)
+                        self.jogador.aplicar_lifesteal(dano)   # dom Sanguessuga (Lote 3)
             else:
                 jogador_atordoado = False
 
@@ -259,6 +260,9 @@ class Masmorra:
                         if critico:
                             print("💥 Acerto CRÍTICO!")
                         _imprimir_dano_jogador(atk, dano, inimigo)
+                        cura = self.jogador.aplicar_lifesteal(dano)
+                        if cura:
+                            print(f"Você drenou {cura} de vida.\n")
                         time.sleep(0.2)
 
                 elif acao == "2":
@@ -275,6 +279,7 @@ class Masmorra:
                         if critico:
                             print("💥 Acerto CRÍTICO!")
                         _imprimir_dano_jogador(atk, dano, inimigo)
+                        self.jogador.aplicar_lifesteal(dano)
                         print("Esquiva bem-sucedida! Não foi atingido.\n")
                         time.sleep(0.2)
                         continue
