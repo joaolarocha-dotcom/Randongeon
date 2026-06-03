@@ -203,6 +203,20 @@ class TestSaveLoad:
         nomes = [it["nome"] for it in load["jogador"]["inventario"]]
         assert "Relíquia" in nomes
 
+    def test_save_load_round_trip_preserva_critico(self):
+        # Lote crítico: a chance de crítico (relevante p/ o dom Sortudo) sobrevive ao save.
+        data = _nova_sessao("story")
+        sid = data["session_id"]
+        jog = session_mod.get_session(sid).masmorra.jogador
+        jog.chance_critico = 0.42
+        save = client.get(f"/game/{sid}/save").json()
+        assert abs(save["jogador"]["chance_critico"] - 0.42) < 1e-9
+
+        load = client.post("/game/load", json=save).json()
+        novo_sid = load["session_id"]
+        jl = session_mod.get_session(novo_sid).masmorra.jogador
+        assert abs(jl.chance_critico - 0.42) < 1e-9
+
     def test_save_load_round_trip_preserva_veneno(self):
         # Lote save: o veneno em andamento deve sobreviver ao save/load (.txt).
         data = _nova_sessao("story")

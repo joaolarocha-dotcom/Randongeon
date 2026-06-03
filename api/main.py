@@ -472,8 +472,10 @@ def combat_attack(session_id: str):
         miss_jogador = True
         mensagem = "Você errou o ataque!"
     else:
-        dano_jogador = inimigo.receber_dano(jogador.atk_efetivo())
-        mensagem = f"Você causou {dano_jogador} de dano."
+        dano_base, critico = jogador.rolar_dano()
+        dano_jogador = inimigo.receber_dano(dano_base)
+        mensagem = (f"💥 Acerto CRÍTICO! Você causou {dano_jogador} de dano."
+                    if critico else f"Você causou {dano_jogador} de dano.")
         # Lote F: REMOVIDO o heal aqui — o Nosferatu não deve se curar quando
         # APANHA. O lifesteal correto está em _processar_ataque_inimigo (cura
         # quando o inimigo ataca o jogador).
@@ -542,8 +544,10 @@ def combat_dodge(session_id: str):
             miss_jogador = True
             mensagem += " Mas errou o contra-ataque!"
         else:
-            dano_jogador = inimigo.receber_dano(jogador.atk_efetivo())
-            mensagem += f" Contra-atacou por {dano_jogador} de dano."
+            dano_base, critico = jogador.rolar_dano()
+            dano_jogador = inimigo.receber_dano(dano_base)
+            mensagem += (f" Contra-atacou com CRÍTICO por {dano_jogador} de dano!"
+                         if critico else f" Contra-atacou por {dano_jogador} de dano.")
             # Lote F: REMOVIDO o heal aqui (vampiro não cura ao apanhar).
 
         if inimigo.hp <= 0:
@@ -856,6 +860,7 @@ def save_game(session_id: str):
             "esq_max":   getattr(j, "esq_max", 1),
             "moedas":    j.moedas,
             "veneno_turnos": getattr(j, "veneno_turnos", 0),  # ← Lote save: preserva o veneno
+            "chance_critico": getattr(j, "chance_critico", 0.10),  # ← Lote crítico
             "inventario": inventario_serial,
         },
     )
@@ -886,6 +891,8 @@ def load_game(req: LoadGameRequest):
         vt = max(0, min(int(jdata.get("veneno_turnos", 0)), Jogador.VENENO_DURACAO))
         if vt > 0:
             jogador.envenenar(vt)
+        # Lote crítico: restaura a chance de crítico (relevante p/ o dom Sortudo).
+        jogador.chance_critico = float(jdata.get("chance_critico", Jogador.CHANCE_CRITICO_BASE))
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Dados do save inválidos: {exc}")
 
