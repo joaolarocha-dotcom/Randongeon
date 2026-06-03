@@ -31,10 +31,50 @@ class Entidade(ABC):
         self.nome   = nome
         self.hp_max = hp
         self.hp     = hp
+        self.efeitos: list = []   # efeitos de status ativos (Lote B2)
 
     def esta_vivo(self) -> bool:
         """True se ainda há HP."""
         return self.hp > 0
+
+    # ── Efeitos de status (Lote B2) ─────────────────────────────────────────
+    def aplicar_efeito(self, efeito) -> None:
+        """
+        Adiciona um efeito. Se já houver um do mesmo tipo, apenas RENOVA a
+        duração para o maior valor (não empilha vários iguais).
+        """
+        existente = self.buscar_efeito(efeito.tipo)
+        if existente is not None:
+            existente.turnos = max(existente.turnos, efeito.turnos)
+        else:
+            self.efeitos.append(efeito)
+
+    def buscar_efeito(self, tipo: str):
+        """Devolve o efeito ativo do tipo dado, ou None."""
+        for e in self.efeitos:
+            if e.tipo == tipo and e.ativo():
+                return e
+        return None
+
+    def remover_efeitos(self, apenas_ao_curar: bool = False) -> None:
+        """Remove efeitos. Se apenas_ao_curar, só os marcados (ex.: veneno)."""
+        if apenas_ao_curar:
+            self.efeitos = [e for e in self.efeitos if not e.remove_ao_curar]
+        else:
+            self.efeitos = []
+
+    def processar_efeitos_turno(self) -> int:
+        """
+        Processa um turno de efeitos: aplica cada hook `ao_iniciar_turno`,
+        consome 1 turno de cada e descarta os expirados.
+        Retorna o dano total causado por efeitos (DoT) neste turno.
+        """
+        dano = 0
+        for e in list(self.efeitos):
+            dano += e.ao_iniciar_turno(self)
+            e.turnos -= 1
+        self.efeitos = [e for e in self.efeitos if e.ativo()]
+        return dano
 
     def curar(self, quantidade: int) -> int:
         """

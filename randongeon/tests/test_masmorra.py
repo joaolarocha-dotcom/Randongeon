@@ -59,9 +59,11 @@ def dummy_inimigo(
     i.bonus_atk_por_turno = 0
     i.chance_atordoar     = 0.0
     i.tipo_especial       = None
-    i.chance_miss         = 0.10
-    i.chance_drop         = 0.10
-    i.chance_veneno       = 0.0
+    i.chance_miss            = 0.10
+    i.chance_drop            = 0.10
+    i.chance_veneno          = 0.0
+    i.chance_fraqueza        = 0.0
+    i.chance_esquiva_debuff  = 0.0
     return i
 
 

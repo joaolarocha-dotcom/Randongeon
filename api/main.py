@@ -55,7 +55,11 @@ from schemas import (
     UseItemResponse,
 )
 from session import GameState, create_session, delete_session, get_session, load_session
-from jogo.entidades.inimigo import Inimigo, BandoDeGoblins, mensagem_veneno
+from jogo.entidades.inimigo import (
+    Inimigo, BandoDeGoblins,
+    mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
+)
+from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
 from jogo.entidades.item    import Item
 from jogo.entidades.jogador import Jogador
 from jogo.entidades.loja    import Loja
@@ -194,6 +198,14 @@ def _processar_ataque_inimigo(
         if relatorio["envenenou"]:
             jogador.envenenar()
             mensagem += " " + mensagem_veneno(inimigo.nome)
+
+        if relatorio.get("fraqueza"):
+            jogador.aplicar_efeito(Fraqueza(2))
+            mensagem += " " + mensagem_fraqueza(inimigo.nome)
+
+        if relatorio.get("esquiva_reduzida"):
+            jogador.aplicar_efeito(EsquivaReduzida(1))
+            mensagem += " " + mensagem_esquiva_reduzida(inimigo.nome)
 
     if dano_veneno > 0:
         mensagem += f" O veneno corrói {dano_veneno} de vida."
@@ -460,7 +472,7 @@ def combat_attack(session_id: str):
         miss_jogador = True
         mensagem = "Você errou o ataque!"
     else:
-        dano_jogador = inimigo.receber_dano(jogador.atk)
+        dano_jogador = inimigo.receber_dano(jogador.atk_efetivo())
         mensagem = f"Você causou {dano_jogador} de dano."
         # Lote F: REMOVIDO o heal aqui — o Nosferatu não deve se curar quando
         # APANHA. O lifesteal correto está em _processar_ataque_inimigo (cura
@@ -521,7 +533,7 @@ def combat_dodge(session_id: str):
         mensagem = f"{jogador.nome} está atordoado e perde o turno!"
         esquivou = False
     else:
-        esquivou = random.random() < jogador.esq
+        esquivou = random.random() < jogador.esquiva_efetiva()
         mensagem = ""
 
     if esquivou:
@@ -530,7 +542,7 @@ def combat_dodge(session_id: str):
             miss_jogador = True
             mensagem += " Mas errou o contra-ataque!"
         else:
-            dano_jogador = inimigo.receber_dano(jogador.atk)
+            dano_jogador = inimigo.receber_dano(jogador.atk_efetivo())
             mensagem += f" Contra-atacou por {dano_jogador} de dano."
             # Lote F: REMOVIDO o heal aqui (vampiro não cura ao apanhar).
 
@@ -870,9 +882,10 @@ def load_game(req: LoadGameRequest):
         # Lote D: restaura o nível salvo. Sem isso o nível voltaria a 1 e o
         # próximo ganho de XP causaria level-ups duplicados (atk/hp em dobro).
         jogador.nivel = int(jdata.get("nivel", 1))
-        # Lote save: restaura o veneno em andamento (limitado ao teto).
-        jogador.veneno_turnos = max(0, min(int(jdata.get("veneno_turnos", 0)),
-                                           Jogador.VENENO_DURACAO))
+        # Lote save: restaura o veneno em andamento (agora via efeito de status).
+        vt = max(0, min(int(jdata.get("veneno_turnos", 0)), Jogador.VENENO_DURACAO))
+        if vt > 0:
+            jogador.envenenar(vt)
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Dados do save inválidos: {exc}")
 
