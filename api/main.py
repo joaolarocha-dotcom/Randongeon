@@ -285,7 +285,7 @@ def advance(session_id: str):
         state.inimigo_ativo = boss
         return SalaResponse(
             tipo="boss",
-            descricao="⚠️ O Coração da Masmorra bloqueia a saída! Não há escapatória!",
+            descricao="⚠️ O Coração da Masmorra pulsa diante de você. A saída cicatrizou — só se sai vencendo.",
             andar=masmorra.andar,
             inimigo=_inimigo_info(boss),
             jogador=_jogador_status(state),
@@ -298,7 +298,7 @@ def advance(session_id: str):
         state.inimigo_ativo = boss
         return SalaResponse(
             tipo="boss",
-            descricao=f"Um guardião emerge das sombras do andar {masmorra.andar}!",
+            descricao=f"As sombras do andar {masmorra.andar} se adensam e tomam forma. Algo guarda este lugar — e não gosta de visitas.",
             andar=masmorra.andar,
             inimigo=_inimigo_info(boss),
             jogador=_jogador_status(state),

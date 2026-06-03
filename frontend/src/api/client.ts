@@ -42,6 +42,7 @@ export interface InimigoInfo {
   hp_max: number;
   atk: number;
   dificuldade: number;
+  tipo_especial?: string | null;
 }
 
 export interface ItemInfo {

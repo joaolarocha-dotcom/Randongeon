@@ -25,6 +25,63 @@ function normalizeJogador(jogador: JogadorStatus): JogadorStatus {
   };
 }
 
+function pick<T>(opcoes: T[]): T {
+  return opcoes[Math.floor(Math.random() * opcoes.length)];
+}
+
+/**
+ * Monta as falas de abertura do combate.
+ *
+ * Tom: sombrio com toques de humor. Cada tipo de inimigo (e o boss) tem suas
+ * próprias linhas, escolhidas ao acaso para a entrada não ficar repetitiva —
+ * substitui o antigo "Um X selvagem apareceu! / Vai, fulano!" estilo Pokémon.
+ */
+function buildEnemyIntro(
+  inimigo: InimigoInfo,
+  jogador: JogadorStatus,
+  tipo: "inimigo" | "boss"
+): string[] {
+  const nome = inimigo.nome;
+
+  if (tipo === "boss" || inimigo.dificuldade === 3) {
+    return pick<string[]>([
+      [`${nome} ergue-se das sombras. O ar fica pesado.`, `A saída desaparece atrás de você. Boa sorte — vai precisar.`],
+      [`${nome} encara você sem nenhuma pressa.`, `Não há para onde correr desta vez, ${jogador.nome}.`],
+      [`O chão treme: ${nome} despertou.`, `Respira fundo. Pode ser o último fôlego.`],
+    ]);
+  }
+
+  switch (inimigo.tipo_especial) {
+    case "nosferatu":
+      return pick<string[]>([
+        [`${nome} desperta com a sede de sempre.`, `Ele observa seu pescoço com um sorriso paciente.`],
+        [`Um ${nome} emerge entre os caixões.`, `"Sangue novo", ele sussurra. Que gentil.`],
+      ]);
+    case "golem":
+      return pick<string[]>([
+        [`Um ${nome} se levanta — a rocha range como ossos antigos.`, `Bater nele vai doer mais em você do que nele.`],
+        [`${nome} bloqueia o corredor. Literalmente.`],
+      ]);
+    case "banshee":
+      return pick<string[]>([
+        [`O lamento de uma ${nome} corta o ar.`, `Tapar os ouvidos não vai adiantar muito.`],
+        [`Uma ${nome} flutua à sua frente, chorando.`, `Não é de tristeza. É de fome.`],
+      ]);
+    case "horda":
+      return pick<string[]>([
+        [`Goblins irrompem de todos os cantos.`, `Eles mal sabem contar até três, mas sabem te cercar.`],
+        [`Uma horda de goblins range os dentes.`, `Um de cada vez — por pura falta de educação.`],
+      ]);
+    default:
+      return pick<string[]>([
+        [`Um ${nome} bloqueia seu caminho.`],
+        [`${nome} surge das sombras, faminto.`],
+        [`Algo se arrasta no escuro: um ${nome}.`],
+        [`Um ${nome} range os dentes e avança.`],
+      ]);
+  }
+}
+
 /**
  * Registry de setTimeouts em vôo. Evita race condition entre setTimeouts de fim de combate
  * e ações subsequentes do jogador (ex: AVANÇAR enquanto victory ainda não disparou).
@@ -274,10 +331,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
       if (res.tipo === "inimigo" || res.tipo === "boss") {
         const inimigo = res.inimigo!;
-        const intro = [
-          `Um ${inimigo.nome} selvagem apareceu!`,
-          `Vai, ${jogadorAtualizado.nome}!`,
-        ];
+        const intro = buildEnemyIntro(inimigo, jogadorAtualizado, res.tipo);
         set({
           inimigo,
           displayedEnemyHP: inimigo.hp_max,
@@ -373,7 +427,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, loading: false });
       if (res.tipo === "mimico") {
         const inimigo = res.inimigo!;
-        const intro = [res.mensagem, `O ${inimigo.nome} ataca!`];
+        const intro = [res.mensagem, `O baú tinha dentes — e fome. O ${inimigo.nome} avança!`];
         set({
           inimigo,
           displayedEnemyHP: inimigo.hp_max,
