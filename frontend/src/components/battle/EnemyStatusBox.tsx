@@ -5,6 +5,8 @@ interface Props {
   inimigo: InimigoInfo;
   /** HP exibido (anima rumo a inimigo.hp). */
   displayedHP: number;
+  /** Lote 4b: boss em 2ª fase/fúria (Coração da Masmorra renasceu). */
+  enraged?: boolean;
 }
 
 function levelFromDifficulty(dificuldade: number): number {
@@ -14,13 +16,27 @@ function levelFromDifficulty(dificuldade: number): number {
   return 5;
 }
 
-export function EnemyStatusBox({ inimigo, displayedHP }: Props) {
+export function EnemyStatusBox({ inimigo, displayedHP, enraged = false }: Props) {
   const lvl = levelFromDifficulty(inimigo.dificuldade);
   return (
     <div className="poke-status">
       <div className="poke-status-name">
         <span>{inimigo.nome.toUpperCase()}</span>
         <span className="poke-status-lvl">:L{lvl}</span>
+        {enraged && (
+          <span
+            className="enemy-fury-badge"
+            title="2ª fase: o boss renasceu em fúria"
+            style={{
+              marginLeft: 6,
+              color: "#ff4d4d",
+              fontWeight: "bold",
+              textShadow: "0 0 4px rgba(255,0,0,0.7)",
+            }}
+          >
+            🔥 FÚRIA
+          </span>
+        )}
       </div>
       <PokeHPBar current={displayedHP} max={inimigo.hp_max} showText={false} />
     </div>
