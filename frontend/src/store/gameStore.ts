@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../api/client";
+import { api, isSessionLost } from "../api/client";
 import type {
   JogadorStatus,
   InimigoInfo,
@@ -17,6 +17,10 @@ function errorMessage(e: unknown): string {
   if (typeof e === "string") return e;
   return "Erro desconhecido";
 }
+
+/** Aviso mostrado ao usuário quando a run é encerrada por perda de sessão. */
+const SESSION_LOST_MSG =
+  "Sua sessão expirou (o servidor foi reiniciado). Inicie uma nova run.";
 
 function normalizeJogador(jogador: JogadorStatus): JogadorStatus {
   return {
@@ -268,6 +272,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       audio.playMusic("bgm_title");
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -287,6 +292,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       audio.playMusic("bgm_dungeon");
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -355,6 +361,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, floorTransitionAndar: null });
     }
   },
@@ -368,6 +375,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatAttack(sessionId);
       handleCombatResult(res, "attack", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -381,6 +389,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatDodge(sessionId);
       handleCombatResult(res, "dodge", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -394,6 +403,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatFlee(sessionId);
       handleCombatResult(res, "flee", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -412,6 +422,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       });
       get().enqueueDialog(res.mensagem);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -450,6 +461,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -488,6 +500,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -503,16 +516,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   quit: async () => {
-    const { sessionId } = get();
-    if (!sessionId) return;
+    const { sessionId, jogador } = get();
     cancelAllTimeouts();
+    // Sem sessão: encerra para o menu sem travar.
+    if (!sessionId) {
+      get().reset();
+      return;
+    }
     try {
       const res = await api.quit(sessionId);
       const jogadorAtualizado = normalizeJogador(res.jogador);
       set({ gameOverMsg: res.mensagem, jogador: jogadorAtualizado, screen: "game_over" });
       audio.playJingle("bgm_game_over");
     } catch (e) {
-      set({ error: errorMessage(e) });
+      // Sessão perdida (servidor reiniciou): volta ao menu com aviso.
+      if (isSessionLost(e)) {
+        get().reset();
+        set({ error: SESSION_LOST_MSG });
+        return;
+      }
+      // Qualquer outra falha: ainda assim encerra a run para o game over,
+      // usando o estado local — DESISTIR nunca deve ficar sem efeito.
+      set({
+        gameOverMsg: `${jogador?.nome ?? "Você"} desistiu da jornada.`,
+        screen: "game_over",
+      });
+      audio.playJingle("bgm_game_over");
     }
   },
 
