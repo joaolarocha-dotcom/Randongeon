@@ -843,6 +843,7 @@ def save_game(session_id: str):
             "esq":       j.esq,
             "esq_max":   getattr(j, "esq_max", 1),
             "moedas":    j.moedas,
+            "veneno_turnos": getattr(j, "veneno_turnos", 0),  # ← Lote save: preserva o veneno
             "inventario": inventario_serial,
         },
     )
@@ -869,6 +870,9 @@ def load_game(req: LoadGameRequest):
         # Lote D: restaura o nível salvo. Sem isso o nível voltaria a 1 e o
         # próximo ganho de XP causaria level-ups duplicados (atk/hp em dobro).
         jogador.nivel = int(jdata.get("nivel", 1))
+        # Lote save: restaura o veneno em andamento (limitado ao teto).
+        jogador.veneno_turnos = max(0, min(int(jdata.get("veneno_turnos", 0)),
+                                           Jogador.VENENO_DURACAO))
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Dados do save inválidos: {exc}")
 
