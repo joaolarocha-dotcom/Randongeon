@@ -26,6 +26,21 @@ ELITE_HP_MULTIPLICADOR = 1.4   # elites escalam mais HP que comuns
 CHANCE_VENENO = 0.08
 NOMES_PODEM_ENVENENAR = ("Goblin", "Rato Gigante")
 
+# Flavor da picada de veneno, por inimigo (Lote 2 de textos). Mantido junto da
+# definição dos inimigos para API e CLI usarem a MESMA mensagem.
+MENSAGENS_VENENO = {
+    "Rato Gigante": "O Rato Gigante crava seus dentes imundos em você; a saliva "
+                    "contaminada arde na ferida. Você foi ENVENENADO!",
+    "Goblin":       "A faca enferrujada e suja do Goblin te acerta de raspão e um "
+                    "mal-estar sobe pelo corpo. Você foi ENVENENADO!",
+}
+MENSAGEM_VENENO_PADRAO = "Você foi ENVENENADO!"
+
+
+def mensagem_veneno(nome_inimigo: str) -> str:
+    """Texto temático de envenenamento conforme o inimigo (Goblin/Rato Gigante)."""
+    return MENSAGENS_VENENO.get(nome_inimigo, MENSAGEM_VENENO_PADRAO)
+
 # ── Pools de loot (Lote C) ────────────────────────────────────────────────────
 # Cada tipo de inimigo tem um pool temático. O pool padrão (LOOT_PADRAO) é usado
 # por inimigos comuns e bosses. As subclasses sobrescrevem tabela_loot() para

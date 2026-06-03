@@ -55,7 +55,7 @@ from schemas import (
     UseItemResponse,
 )
 from session import GameState, create_session, delete_session, get_session, load_session
-from jogo.entidades.inimigo import Inimigo, BandoDeGoblins
+from jogo.entidades.inimigo import Inimigo, BandoDeGoblins, mensagem_veneno
 from jogo.entidades.item    import Item
 from jogo.entidades.jogador import Jogador
 from jogo.entidades.loja    import Loja
@@ -193,7 +193,7 @@ def _processar_ataque_inimigo(
 
         if relatorio["envenenou"]:
             jogador.envenenar()
-            mensagem += f" {jogador.nome} foi envenenado!"
+            mensagem += " " + mensagem_veneno(inimigo.nome)
 
     if dano_veneno > 0:
         mensagem += f" O veneno corrói {dano_veneno} de vida."
@@ -393,15 +393,17 @@ def _resolver_derrota_inimigo(
     if loot_drop:
         jogador.adicionar_item(loot_drop)        # Lote F: loot vai pro inventário
         mensagem += f" ✨ {loot_drop.nome} caiu no chão!"
-    mensagem += f" {inimigo.nome} foi derrotado!"
+    e_bando = getattr(inimigo, "tipo_especial", None) == "horda"
 
-    # Ainda há goblins na fila do bando? → próximo inimigo
+    # Bando de Goblins (Lote E): cai UM goblin por vez. Enquanto houver fila, o
+    # texto fala de um goblin só; o "bando foi derrotado" fica para o último.
     if state.fila_inimigos:
         proximo = state.fila_inimigos.pop(0)
         state.inimigo_ativo = proximo
+        mensagem += " O goblin foi derrotado! Outro goblin avança rangendo os dentes!"
         return CombatActionResponse(
             resultado="proximo",
-            mensagem=mensagem + f" {proximo.nome} avança!",
+            mensagem=mensagem,
             dano_jogador=dano_jogador,
             dano_inimigo=0,
             jogador=_jogador_status(state),
@@ -410,6 +412,12 @@ def _resolver_derrota_inimigo(
             miss_inimigo=False,
             loot=_item_info(loot_drop) if loot_drop else None,
         )
+
+    # Último da fila (ou inimigo comum): agora sim anuncia a derrota completa.
+    if e_bando:
+        mensagem += " O último goblin tombou — o Bando de Goblins foi derrotado!"
+    else:
+        mensagem += f" {inimigo.nome} foi derrotado!"
 
     state.inimigo_ativo = None
     campanha = _checar_vitoria_campanha(
