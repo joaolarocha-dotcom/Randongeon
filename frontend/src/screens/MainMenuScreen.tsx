@@ -8,6 +8,7 @@ export function MainMenuScreen() {
   const goToTutorials = useGameStore((s) => s.goToTutorials);
   const goToLoadGame = useGameStore((s) => s.goToLoadGame);
   const goToSettings = useGameStore((s) => s.goToSettings);
+  const goToLeaderboard = useGameStore((s) => s.goToLeaderboard);
   const [logoSrc, setLogoSrc] = useState(LOGO_SPRITE.src);
 
   useEffect(() => {
@@ -58,6 +59,9 @@ export function MainMenuScreen() {
         </button>
         <button className="poke-btn" onClick={click(goToTutorials)}>
           TUTORIAIS
+        </button>
+        <button className="poke-btn" onClick={click(goToLeaderboard)}>
+          VER PLACAR
         </button>
         <button className="poke-btn" onClick={click(goToSettings)}>
           CONFIGURAÇÕES

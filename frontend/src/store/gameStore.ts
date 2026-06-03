@@ -50,6 +50,7 @@ export type Screen =
   | "tutorials"
   | "load_game"
   | "settings"
+  | "leaderboard"
   | "title"
   | "lore"
   | "menu"
@@ -122,6 +123,7 @@ interface GameStore {
   goToTutorials: () => void;
   goToLoadGame: () => void;
   goToSettings: () => void;
+  goToLeaderboard: () => void;
   goToTitle: (modo?: Modo) => void;
 
   // Actions principais (jogo)
@@ -188,6 +190,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   goToTutorials: () => set({ screen: "tutorials" }),
   goToLoadGame: () => set({ screen: "load_game" }),
   goToSettings: () => set({ screen: "settings" }),
+  goToLeaderboard: () => set({ screen: "leaderboard" }),
   goToTitle: (modo: Modo = "story") => set({ screen: "title", pendingModo: modo, error: null }),
 
   // ───────── Jogo ─────────
