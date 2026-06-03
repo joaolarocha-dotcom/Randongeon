@@ -16,11 +16,18 @@ from jogo.entidades.loja import Loja
 # ── Dados estáticos das salas ─────────────────────────────────────────────────
 
 DESCRICOES_SALA = [
-    "Uma sala escura com cheiro de mofo.",
-    "Uma caverna iluminada por cristais brilhantes.",
-    "Um corredor antigo repleto de ossos espalhados.",
-    "Uma câmara úmida com paredes cobertas de musgo.",
-    "Um salão vazio onde ecos distantes se perdem nas sombras.",
+    "Uma sala úmida que fede a mofo e a coisas que era melhor não identificar.",
+    "Cristais pálidos pulsam nas paredes, como se a caverna respirasse junto com você.",
+    "Ossos cobrem o chão. Alguns ainda parecem surpresos.",
+    "Musgo engole as paredes; o silêncio aqui tem peso próprio.",
+    "Um salão vazio onde seus passos voltam como ecos que não são bem os seus.",
+    "Marcas de garras sobem pelas paredes até o teto. Subindo. Sempre subindo.",
+    "Velas acesas há séculos teimam em não apagar. Ninguém pediu companhia.",
+    "Uma poça escura reflete um teto que não está lá.",
+    "O ar é frio e parado, como o de um lugar acostumado a esperar.",
+    "Inscrições gastas cobrem a parede. A única legível diz: 'volte'.",
+    "Correntes enferrujadas pendem do nada, balançando sem vento.",
+    "Um cheiro doce e errado paira no ar. Melhor não procurar a fonte.",
 ]
 
 CATALOGO_ITENS = [
