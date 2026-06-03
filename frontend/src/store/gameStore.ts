@@ -188,7 +188,7 @@ interface GameStore {
   goToTitle: (modo?: Modo) => void;
 
   // Actions principais (jogo)
-  startGame: (nome: string) => Promise<void>;
+  startGame: (nome: string, dom?: string | null) => Promise<void>;
   loadFromSave: (save: SaveState) => Promise<void>;
   fetchLore: () => Promise<void>;
   goToMenu: () => void;
@@ -256,11 +256,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ───────── Jogo ─────────
 
-  startGame: async (nome: string) => {
+  startGame: async (nome: string, dom: string | null = null) => {
     set({ loading: true, error: null });
     try {
       const modo = get().pendingModo;
-      const res = await api.newGame(nome, modo);
+      const res = await api.newGame(nome, modo, dom);
       const jogador = normalizeJogador(res.jogador);
       set({
         sessionId: res.session_id,
