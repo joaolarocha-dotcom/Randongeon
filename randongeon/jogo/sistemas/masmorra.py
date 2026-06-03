@@ -108,7 +108,8 @@ class Masmorra:
         while self.jogador.esta_vivo() and inimigo.esta_vivo():
             if not jogador_atordoado:
                 if not random.random() < CHANCE_MISS_JOGADOR:
-                    inimigo.receber_dano(self.jogador.atk_efetivo())
+                    dano_base, _ = self.jogador.rolar_dano()
+                    inimigo.receber_dano(dano_base)
             else:
                 jogador_atordoado = False
 
@@ -248,8 +249,10 @@ class Masmorra:
                 print()
 
                 if acao == "1":
-                    atk = self.jogador.atk_efetivo()
+                    atk, critico = self.jogador.rolar_dano()
                     dano = inimigo.receber_dano(atk)
+                    if critico:
+                        print("💥 Acerto CRÍTICO!")
                     _imprimir_dano_jogador(atk, dano, inimigo)
                     time.sleep(0.2)
 
@@ -258,8 +261,10 @@ class Masmorra:
                     time.sleep(0.2)
 
                     if random.random() <= self.jogador.esquiva_efetiva():
-                        atk = self.jogador.atk_efetivo()
+                        atk, critico = self.jogador.rolar_dano()
                         dano = inimigo.receber_dano(atk)
+                        if critico:
+                            print("💥 Acerto CRÍTICO!")
                         _imprimir_dano_jogador(atk, dano, inimigo)
                         print("Esquiva bem-sucedida! Não foi atingido.\n")
                         time.sleep(0.2)

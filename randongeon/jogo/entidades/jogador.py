@@ -6,6 +6,8 @@ Define a classe Jogador com todos os atributos, validações e comportamentos
 necessários para o funcionamento do RPG e para a cobertura de testes unitários.
 """
 
+import random
+
 from jogo.entidades.entidade import Entidade
 from jogo.entidades.efeitos import Veneno
 
@@ -32,6 +34,8 @@ class Jogador(Entidade):
     ESQ_POR_NIVEL = 0.005 # pequeno ganho de esquiva por nível
     ESQ_MAXIMA    = 0.6   # teto de esquiva por progressão de nível
     VENENO_DURACAO = 3    # turnos que o veneno dura ao ser aplicado (Lote M)
+    CHANCE_CRITICO_BASE   = 0.10  # chance base de acerto crítico (Lote crítico)
+    MULTIPLICADOR_CRITICO = 1.5   # multiplicador de dano no crítico
 
     def __init__(self, nome: str, hp: int = 20, atk: int = 5, xp: int = 0, esq: float= 0.3, moedas: int = 0) -> None:
         """
@@ -62,6 +66,7 @@ class Jogador(Entidade):
         self.esq_max = 1
         self.moedas = moedas
         self.inventario: list = []
+        self.chance_critico = self.CHANCE_CRITICO_BASE   # Lote crítico
         # veneno_turnos agora é uma @property derivada dos efeitos (Lote B2).
 
     # ── Vida (esta_vivo e curar são herdados de Entidade) ───────────────────────
@@ -210,6 +215,22 @@ class Jogador(Entidade):
         for efeito in self.efeitos:
             esq = efeito.modifica_esquiva(esq)
         return esq
+
+    def rolar_dano(self) -> tuple[int, bool]:
+        """
+        Calcula o dano de UM golpe do jogador, com chance de acerto CRÍTICO.
+
+        Encapsula a regra num só lugar (usado pela API, CLI e combate automático):
+        parte do ATK efetivo (já considerando Fraqueza etc.) e, na sorte, aplica
+        o multiplicador de crítico.
+
+        Retorna:
+            (dano, foi_critico)
+        """
+        dano = self.atk_efetivo()
+        if random.random() < self.chance_critico:
+            return int(dano * self.MULTIPLICADOR_CRITICO), True
+        return dano, False
 
     # ── Pontuação (comparativo de competição) ─────────────────────────────────
 

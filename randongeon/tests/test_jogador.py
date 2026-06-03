@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 from jogo.entidades.jogador import Jogador
 
 class TestCriacaoJogador:
@@ -367,6 +368,40 @@ class TestPontuacao:
     def test_pontuacao_e_somente_leitura(self, jogador_padrao):
         with pytest.raises(AttributeError):
             jogador_padrao.pontuacao = 999
+
+
+class TestCritico:
+    """Lote crítico: jogador.rolar_dano() devolve (dano, foi_critico)."""
+
+    def test_chance_critico_base(self):
+        j = Jogador("H", hp=20, atk=10)
+        assert j.chance_critico == Jogador.CHANCE_CRITICO_BASE
+
+    def test_critico_multiplica_dano(self):
+        import jogo.entidades.jogador as mod
+        j = Jogador("H", hp=20, atk=10)
+        with patch.object(mod.random, "random", return_value=0.0):  # garante crítico
+            dano, critico = j.rolar_dano()
+        assert critico is True
+        assert dano == int(10 * Jogador.MULTIPLICADOR_CRITICO)
+
+    def test_sem_critico_dano_normal(self):
+        import jogo.entidades.jogador as mod
+        j = Jogador("H", hp=20, atk=10)
+        with patch.object(mod.random, "random", return_value=0.99):  # sem crítico
+            dano, critico = j.rolar_dano()
+        assert critico is False
+        assert dano == 10
+
+    def test_critico_considera_atk_efetivo(self):
+        # Fraqueza reduz o ATK antes do crítico.
+        import jogo.entidades.jogador as mod
+        from jogo.entidades.efeitos import Fraqueza
+        j = Jogador("H", hp=20, atk=10)
+        j.aplicar_efeito(Fraqueza(2, reducao=4))   # atk efetivo = 6
+        with patch.object(mod.random, "random", return_value=0.0):
+            dano, critico = j.rolar_dano()
+        assert dano == int(6 * Jogador.MULTIPLICADOR_CRITICO)
 
 
 class TestVeneno:
