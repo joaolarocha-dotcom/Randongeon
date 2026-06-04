@@ -9,6 +9,12 @@ Não modifica o jogo. Usa o Jogador real (com nível) e a Masmorra real (boss/lo
 Comuns/elite vêm de uma versão ESCALADA local (gerar_escalado).
 """
 
+# --- bootstrap de path: acha o pacote 'jogo' (randongeon/, uma pasta acima). ---
+# Ferramentas de calibracao Monte Carlo: NAO sao testes nem parte do jogo.
+# Ver simulacoes/README.md.
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import random
 import statistics
 

@@ -14,6 +14,12 @@ SEM aplicar XP/loot ao final (para o ganho de nível não curar o herói e
 distorcer a medição de HP perdido).
 """
 
+# --- bootstrap de path: acha o pacote 'jogo' (randongeon/, uma pasta acima). ---
+# Ferramentas de calibracao Monte Carlo: NAO sao testes nem parte do jogo.
+# Ver simulacoes/README.md.
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import random
 import statistics
 

@@ -11,6 +11,12 @@ ataque, miss de 10%). Estimativa PESSIMISTA — o jogador web ainda tem a ação
 Esquivar, que só melhora os números.
 """
 
+# --- bootstrap de path: acha o pacote 'jogo' (randongeon/, uma pasta acima). ---
+# Ferramentas de calibracao Monte Carlo: NAO sao testes nem parte do jogo.
+# Ver simulacoes/README.md.
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import random
 import statistics
 

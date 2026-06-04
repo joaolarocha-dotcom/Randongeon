@@ -11,8 +11,14 @@ Roda com seed fixa por configuração para comparabilidade.
 
 Uso:
     cd randongeon ; ./.venv/Scripts/Activate.ps1
-    python sim_boss_fase2.py
+    python simulacoes/sim_boss_fase2.py
 """
+
+# --- bootstrap de path: acha o pacote 'jogo' (randongeon/, uma pasta acima). ---
+# Ferramentas de calibracao Monte Carlo: NAO sao testes nem parte do jogo.
+# Ver simulacoes/README.md.
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import random
 
