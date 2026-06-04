@@ -62,7 +62,7 @@ from jogo.entidades.inimigo import (
 )
 from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
 from jogo.entidades.item    import Item
-from jogo.entidades.jogador import Jogador
+from jogo.entidades.jogador import Jogador, mensagem_level_up
 from jogo.entidades.loja    import Loja
 from jogo.sistemas.masmorra import CHANCE_MISS_JOGADOR, LORE, POOL_LOOT
 
@@ -117,6 +117,8 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         esq=j.esq,
         xp=j.xp,
         nivel=getattr(j, "nivel", 1),    # ← Lote D: nível real (Lote A)
+        xp_nivel_atual=j.progresso_nivel()[0],   # ← barra de XP (curva real)
+        xp_nivel_total=j.progresso_nivel()[1],
         pontuacao=getattr(j, "pontuacao", 0),  # ← Lote G
         score=state.masmorra.calcular_score(),  # ← Lote H: score da run
         moedas=j.moedas,
@@ -427,7 +429,12 @@ def _resolver_derrota_inimigo(
         )
 
     jogador = state.masmorra.jogador
-    jogador.ganhar_xp(inimigo.xp)
+    niveis_ganhos = jogador.ganhar_xp(inimigo.xp)
+    # Feedback de level-up: a cura ao subir de nível era silenciosa. Agora anuncia.
+    sufixo_levelup = (
+        " " + mensagem_level_up(jogador.nome, jogador.nivel, niveis_ganhos)
+        if niveis_ganhos > 0 else ""
+    )
     jogador.ganhar_moedas(inimigo.moedas)
     loot_drop = _rolar_loot(inimigo)
     if loot_drop:
@@ -441,6 +448,7 @@ def _resolver_derrota_inimigo(
         proximo = state.fila_inimigos.pop(0)
         state.inimigo_ativo = proximo
         mensagem += " O goblin foi derrotado! Outro goblin avança rangendo os dentes!"
+        mensagem += sufixo_levelup
         return CombatActionResponse(
             resultado="proximo",
             mensagem=mensagem,
@@ -458,6 +466,7 @@ def _resolver_derrota_inimigo(
         mensagem += " O último goblin tombou — o Bando de Goblins foi derrotado!"
     else:
         mensagem += f" {inimigo.nome} foi derrotado!"
+    mensagem += sufixo_levelup
 
     state.inimigo_ativo = None
     campanha = _checar_vitoria_campanha(

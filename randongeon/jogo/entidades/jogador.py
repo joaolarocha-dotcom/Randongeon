@@ -117,12 +117,16 @@ class Jogador(Entidade):
         return self.esq - esq_antes
     # ── Progressão ────────────────────────────────────────────────────────────
 
-    def ganhar_xp(self, quantidade: int) -> None:
+    def ganhar_xp(self, quantidade: int) -> int:
         """
         Adiciona XP ao jogador.
 
         Parâmetros:
             quantidade (int): Quantidade de XP a ganhar. Deve ser >= 0.
+
+        Retorna:
+            int: quantos níveis o herói subiu nesta chamada (0 se nenhum) —
+                 usado pela API/CLI para anunciar o level-up (Lote 6/feedback).
 
         Levanta:
             ValueError: Se quantidade for negativa.
@@ -130,7 +134,7 @@ class Jogador(Entidade):
         if quantidade < 0:
             raise ValueError("XP ganho não pode ser negativo.")
         self.xp += quantidade
-        self._atualizar_nivel()
+        return self._atualizar_nivel()   # nº de níveis subidos (0 se nenhum)
 
     # ── Progressão de nível ───────────────────────────────────────────────────
 
@@ -169,6 +173,23 @@ class Jogador(Entidade):
             self.remover_efeitos(apenas_ao_curar=True)       # subir de nível purga veneno (Lote M/B2)
             niveis_ganhos += 1
         return niveis_ganhos
+
+    def progresso_nivel(self) -> tuple:
+        """
+        Progresso de XP DENTRO do nível atual, para a barra da UI.
+
+        Usa a MESMA curva triangular de `xp_para_proximo_nivel()` — assim a barra
+        no frontend bate com a regra real de subir de nível (antes a UI estimava
+        com `xp/50`, que divergia da curva e confundia o jogador).
+
+        Retorna:
+            tuple (xp_no_nivel, xp_total_do_nivel):
+              - xp_no_nivel: XP já acumulado desde que entrou no nível atual;
+              - xp_total_do_nivel: XP necessário para atravessar o nível atual.
+        """
+        base_atual = self.XP_BASE_NIVEL * (self.nivel - 1) * self.nivel  # xp ao entrar no nível
+        base_prox  = self.XP_BASE_NIVEL * self.nivel * (self.nivel + 1)  # xp para o próximo
+        return self.xp - base_atual, base_prox - base_atual
 
     # ── Status (Lote B2: veneno migrado para o sistema de EfeitoStatus) ─────────
 
@@ -336,3 +357,17 @@ class Jogador(Entidade):
             f"Jogador(nome={self.nome!r}, nivel={self.nivel}, "
             f"hp={self.hp}/{self.hp_max}, atk={self.atk}, xp={self.xp})"
         )
+
+
+# ── Texto de level-up (feedback ao jogador) ───────────────────────────────────
+# Mantido como função de módulo para API e CLI usarem a MESMA mensagem (mesmo
+# padrão de mensagem_veneno/mensagem_fraqueza). Antes a cura ao subir de nível era
+# silenciosa e o jogador não entendia por que a vida tinha voltado.
+def mensagem_level_up(nome: str, novo_nivel: int, niveis_ganhos: int = 1) -> str:
+    """Texto comemorativo de subida de nível (vida recuperada + stats)."""
+    if niveis_ganhos > 1:
+        salto = f"subiu {niveis_ganhos} níveis de uma vez, até o nível {novo_nivel}"
+    else:
+        salto = f"subiu para o nível {novo_nivel}"
+    return (f"⭐ PARABÉNS! {nome} {salto}! Vida recuperada e ATK, HP máximo "
+            f"e esquiva aumentados!")

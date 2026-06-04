@@ -46,6 +46,9 @@ class JogadorStatus(BaseModel):
     esq:       float
     xp:        int
     nivel:     int                    = 1   # ← Lote D: nível real (Lote A)
+    # Progresso de XP no nível atual (curva real) — barra de XP correta na UI.
+    xp_nivel_atual: int               = 0   # ← Lote 6/feedback
+    xp_nivel_total: int               = 1   # ← Lote 6/feedback (>=1, evita div/0)
     pontuacao: int                    = 0   # ← Lote G: pontuação (prévia do Lote H)
     score:     int                    = 0   # ← Lote H: score da run (pontuacao + andar*100)
     moedas:    int
