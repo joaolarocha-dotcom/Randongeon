@@ -49,6 +49,8 @@ export interface JogadorStatus {
   esq: number;
   xp: number;
   nivel: number;
+  xp_nivel_atual?: number;   // XP no nível atual (barra de XP correta)
+  xp_nivel_total?: number;   // XP total para atravessar o nível atual
   pontuacao: number;
   score: number;
   moedas: number;

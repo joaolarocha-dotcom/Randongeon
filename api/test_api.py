@@ -469,3 +469,29 @@ class TestEfeitosNoStatus:
         j = client.get(f"/game/{r['session_id']}/status").json()["jogador"]
         assert j["dom"] == "sanguessuga"
         assert j["lifesteal"] == 0.10
+
+
+# ── Feedback de level-up (mensagem + barra de XP correta) ──────────────────────
+
+class TestLevelUpFeedback:
+    def test_status_inclui_progresso_de_nivel(self):
+        sid = _nova_sessao("story")["session_id"]
+        j = client.get(f"/game/{sid}/status").json()["jogador"]
+        assert j["xp_nivel_atual"] == 0
+        assert j["xp_nivel_total"] == 20      # nível 1 → 2 custa 20 XP (curva real)
+
+    def test_combate_que_sobe_nivel_anuncia_parabens(self):
+        from unittest.mock import patch
+        sid = _nova_sessao("story")["session_id"]
+        state = session_mod.get_session(sid)
+        jog = state.masmorra.jogador
+        jog.atk = 1000                        # one-shot
+        inimigo = Inimigo("Goblin", hp=1, atk=1, dificuldade=1, xp=25, moedas=0)
+        state.inimigo_ativo = inimigo
+
+        # random alto → jogador não erra o golpe (evita o miss de 10%).
+        with patch("main.random.random", return_value=0.99):
+            r = client.post(f"/game/{sid}/combat/attack").json()
+        assert r["resultado"] == "vitoria"
+        assert "PARABÉNS" in r["mensagem"]    # anunciou o level-up
+        assert r["jogador"]["nivel"] == 2     # 25 XP → nível 2

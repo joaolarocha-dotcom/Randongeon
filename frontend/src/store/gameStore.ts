@@ -673,6 +673,7 @@ function handleCombatResult(
   get: StoreGet
 ) {
   const log = get().combatLog;
+  const nivelAntes = get().jogador?.nivel ?? 1;   // p/ detectar level-up
   const tipo: CombatLog["tipo"] =
     res.resultado === "vitoria"
       ? "vitoria"
@@ -684,6 +685,7 @@ function handleCombatResult(
 
   const newLog: CombatLog[] = [...log, { mensagem: res.mensagem, tipo }];
   const jogadorAtualizado = normalizeJogador(res.jogador);
+  const subiuNivel = jogadorAtualizado.nivel > nivelAntes;   // Lote 6/feedback
 
   // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente).
   // Lote E: no "proximo" (novo goblin do bando), reseta a barra de HP exibida
@@ -711,6 +713,12 @@ function handleCombatResult(
   } else if (action === "flee") {
     if (res.resultado === "fuga") audio.playSfx("sfx_flee_success");
     else audio.playSfx("sfx_flee_fail");
+  }
+
+  // Lote 6/feedback: subiu de nível neste combate → toca o jingle de level-up
+  // (a mensagem comemorativa já vem em res.mensagem, vinda da API).
+  if (subiuNivel) {
+    scheduleTimeout(() => audio.playSfx("sfx_level_up"), 650);
   }
 
   // Enfileira mensagens

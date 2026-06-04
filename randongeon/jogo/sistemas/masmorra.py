@@ -2,7 +2,7 @@ import random
 import time
 from typing import Optional
 
-from jogo.entidades.jogador import Jogador
+from jogo.entidades.jogador import Jogador, mensagem_level_up
 from jogo.entidades.inimigo import (
     Inimigo, CoracaoDaMasmorra, LOOT_PADRAO, MENSAGEM_RENASCIMENTO,
     mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
@@ -145,7 +145,9 @@ class Masmorra:
                 continue
             break
 
-        self.jogador.ganhar_xp(inimigo.xp)
+        niveis_ganhos = self.jogador.ganhar_xp(inimigo.xp)
+        if niveis_ganhos > 0:   # feedback de level-up (mesma mensagem da API)
+            print(mensagem_level_up(self.jogador.nome, self.jogador.nivel, niveis_ganhos))
         self.jogador.ganhar_moedas(inimigo.moedas)
         loot = self._rolar_loot(inimigo)
         if loot:
