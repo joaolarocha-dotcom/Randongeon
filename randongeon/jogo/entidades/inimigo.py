@@ -72,6 +72,18 @@ TROLL_HP_MULTIPLICADOR = 1.6   # Troll tem ~60% mais HP que um elite comum
 # cura parcial no level-up (mais poções/itens para gerenciar).
 CHANCE_DROP_PADRAO = 0.15
 
+# ── Escala dos elites ESPECIAIS por andar (lote balance "B") ───────────────────
+# Bug corrigido: Golem/Nosferatu/Banshee tinham stats FIXAS no construtor e não
+# escalavam por andar — então no fim da campanha morriam mais fácil que um comum
+# (medido em sim_elites_tank.py). Agora recebem bônus de HP/ATK por andar via
+# params OPCIONAIS (default 0 → stats base intactas para testes/uso sem andar).
+# Multiplicador um pouco maior que o dos elites genéricos (1.4) porque os
+# especiais devem ser os mais ameaçadores. Tunável — calibrado por Monte Carlo.
+ESPECIAL_HP_MULTIPLICADOR = 1.6
+# Golem é o TANQUE: além do HP, a armadura também sobe com o andar (rampa).
+# +1 de absorção a cada GOLEM_ARMADURA_PASSO andares (a partir da base 3).
+GOLEM_ARMADURA_PASSO = 6
+
 # Flavor da picada de veneno, por inimigo (Lote 2 de textos). Mantido junto da
 # definição dos inimigos para API e CLI usarem a MESMA mensagem.
 MENSAGENS_VENENO = {
@@ -340,7 +352,16 @@ class Inimigo(Entidade):
 
             if pool_especiais and random.random() < ratio_especial(andar):
                 classe_escolhida = random.choice(pool_especiais)
-                return classe_escolhida()
+                # Lote balance B: os especiais agora ESCALAM por andar (antes
+                # nasciam com stats fixas e viravam alvos fáceis no fim).
+                bonus_hp_especial = round(bonus_hp * ESPECIAL_HP_MULTIPLICADOR)
+                if classe_escolhida is GolemDePedra:
+                    return GolemDePedra(
+                        bonus_hp=bonus_hp_especial,
+                        bonus_atk=bonus_atk,
+                        bonus_armadura=andar // GOLEM_ARMADURA_PASSO,
+                    )
+                return classe_escolhida(bonus_hp=bonus_hp_especial, bonus_atk=bonus_atk)
 
             # Elite (dif 2) — stats escalam com o andar. Orc e Troll têm
             # identidade própria (Lote 2): viram subclasses; Esqueleto é genérico.
@@ -376,11 +397,12 @@ class Inimigo(Entidade):
 class Nosferatu(Inimigo):
     # Antigo "Vampiro das Sombras" (renomeado no Lote B). Mantém a mecânica de
     # regeneração ao causar dano. Herda de Inimigo e especializa o construtor.
-    def __init__(self) -> None:
+    # bonus_hp/bonus_atk: escala por andar (default 0 → stats base, lote balance B).
+    def __init__(self, bonus_hp: int = 0, bonus_atk: int = 0) -> None:
         super().__init__(
             nome="Nosferatu",
-            hp=random.randint(12, 18),
-            atk=random.randint(4, 6),
+            hp=random.randint(12, 18) + bonus_hp,
+            atk=random.randint(4, 6) + bonus_atk,
             dificuldade=2,
             xp=45,
             moedas=random.randint(10, 15),
@@ -395,16 +417,18 @@ class Nosferatu(Inimigo):
         return LOOT_NOSFERATU
 
 class GolemDePedra(Inimigo):
-    def __init__(self) -> None:
+    # bonus_hp/bonus_atk: escala por andar; bonus_armadura: rampa de armadura do
+    # tanque (default 0 → stats base intactas, lote balance B).
+    def __init__(self, bonus_hp: int = 0, bonus_atk: int = 0, bonus_armadura: int = 0) -> None:
         super().__init__(
             nome="Golem de Pedra",
-            hp=random.randint(15, 22),
-            atk=random.randint(3, 5),
+            hp=random.randint(15, 22) + bonus_hp,
+            atk=random.randint(3, 5) + bonus_atk,
             dificuldade=2,
             xp=50,
             moedas=random.randint(10, 15),
             modificador_fuga=0.40,
-            absorcao_dano=3,          # Lote C: defesa maior (era 2)
+            absorcao_dano=3 + bonus_armadura,   # Lote C: base 3; lote B: +rampa por andar
             tipo_especial="golem",
             chance_miss=0.10,
             chance_drop=0.20
@@ -432,11 +456,12 @@ class HordaDeGoblins(Inimigo):
         return LOOT_HORDA
 
 class Banshee(Inimigo):
-    def __init__(self) -> None:
+    # bonus_hp/bonus_atk: escala por andar (default 0 → stats base, lote balance B).
+    def __init__(self, bonus_hp: int = 0, bonus_atk: int = 0) -> None:
         super().__init__(
             nome="Banshee",
-            hp=random.randint(10, 15),
-            atk=random.randint(3, 6),
+            hp=random.randint(10, 15) + bonus_hp,
+            atk=random.randint(3, 6) + bonus_atk,
             dificuldade=2,
             xp=55,
             moedas=random.randint(10, 20),
