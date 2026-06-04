@@ -17,6 +17,22 @@ BOSS_A_CADA_ANDARES          = 5
 BOSS_A_CADA_ANDARES_INFINITO = 3
 CHANCE_MISS_JOGADOR          = 0.10
 
+# ── Curva de stats dos bosses (recalibração) — TUNÁVEL ────────────────────────
+# hp = BOSS_HP_BASE + fator*BOSS_HP_STEP ; atk = BOSS_ATK_BASE + fator*BOSS_ATK_STEP
+# (fator = andar // 5 no story → 1,2,3,4 nos andares 5/10/15/20).
+#
+# Recalibração (sim_recalibracao.py): o diagnóstico Monte Carlo mostrou que 61%
+# das runs morriam no PRIMEIRO boss (A5), com win-rate de só ~38% — o ATK do boss
+# (8) era a causa, não o HP. Config "C" (só ATK): baixa o ATK do início mantendo
+# TODO o HP e o ATK do boss final (A20=17) intactos. Curva de ATK resultante:
+#   andar:   5    10    15    20
+#   ATK:     6    10    13    17   (= round(2 + fator*3.75); antes 8/11/14/17)
+# A5 win sobe de ~38% → ~70% e a campanha de ~11% → ~22%, sem aliviar o A20.
+BOSS_HP_BASE  = 20
+BOSS_HP_STEP  = 20
+BOSS_ATK_BASE = 2
+BOSS_ATK_STEP = 3.75
+
 # POOL_LOOT mantido por compatibilidade (API e testes importam daqui). A partir
 # do Lote C ele é o pool PADRÃO definido em inimigo.py; cada inimigo especial tem
 # o seu próprio via inimigo.tabela_loot() (polimorfismo).
@@ -168,16 +184,13 @@ class Masmorra:
             return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES_INFINITO == 0
 
     def gerar_boss(self) -> Inimigo:
-        # Curva progressiva (balance v3.2 — "config I" do simulador Monte Carlo):
-        # base baixa para SUAVIZAR o primeiro boss (andar 5) e passo alto para os
-        # bosses tardios continuarem ameaçadores. Casa com o sistema de nível do
-        # jogador, que faz o herói escalar junto.
+        # Curva progressiva (constantes BOSS_* acima; recalibração config "C").
         #   andar:   5    10    15    20
         #   HP:     40    60    80   100   (= 20 + fator*20)
-        #   ATK:     8    11    14    17   (= 5  + fator*3)
+        #   ATK:     6    10    13    17   (= round(2 + fator*3.75))
         fator  = self.andar // (BOSS_A_CADA_ANDARES if self.modo == "story" else BOSS_A_CADA_ANDARES_INFINITO)
-        hp     = 20 + (fator * 20)
-        atk    =  5 + (fator * 3)
+        hp     = round(BOSS_HP_BASE  + fator * BOSS_HP_STEP)
+        atk    = round(BOSS_ATK_BASE + fator * BOSS_ATK_STEP)
         xp     = 80 + (fator * 40)
         moedas = 25 + (fator * 8)
         nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")

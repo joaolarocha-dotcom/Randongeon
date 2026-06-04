@@ -24,11 +24,12 @@ class TestModoValidacao:
         assert m.modo == "story"
 
 class TestEscalonamentoBoss:
-    # Balance v3.2 (config I): HP = 20 + fator*20, ATK = 5 + fator*3.
+    # Recalibração (config C): HP = 20 + fator*20 (inalterado); ATK suavizado =
+    # round(2 + fator*3.75) → 6/10/13/17 (era 8/11/14/17; A20 mantém 17).
     @pytest.mark.parametrize("andar,hp_esperado,atk_esperado", [
-        (5, 40, 8),
-        (10, 60, 11),
-        (15, 80, 14),
+        (5, 40, 6),
+        (10, 60, 10),
+        (15, 80, 13),
         (20, 100, 17),
     ])
     def test_formula_boss_story(self, masmorra_story, andar, hp_esperado, atk_esperado):
@@ -42,9 +43,9 @@ class TestEscalonamentoBoss:
         boss = masmorra_story.gerar_boss()
         ataques_para_matar_boss = (boss.hp + masmorra_story.jogador.atk - 1) // masmorra_story.jogador.atk
         dano_total_sofrido = (ataques_para_matar_boss - 1) * boss.atk
-        # Boss A5 v3.2: 40 HP / 8 ATK; herói padrão (5 ATK, 20 HP).
+        # Boss A5 (recalibração C): 40 HP / 6 ATK; herói padrão (5 ATK, 20 HP).
         assert ataques_para_matar_boss == 8
-        assert dano_total_sofrido == 56
+        assert dano_total_sofrido == 42   # 7 golpes sofridos * 6 ATK (era 56 com ATK 8)
 
 class TestModoInfinite:
     def test_boss_a_cada_3_andares_no_infinite(self, masmorra_infinite):
