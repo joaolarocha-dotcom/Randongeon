@@ -28,6 +28,12 @@ class ItemInventario(BaseModel):
     bonus_esq: float = 0.0
 
 
+class EfeitoAtivo(BaseModel):
+    """Lote 5: um efeito de status ativo no jogador (para o badge na UI)."""
+    tipo:   str   # "veneno" | "fraqueza" | "esquiva_reduzida"
+    turnos: int   # turnos restantes
+
+
 class JogadorStatus(BaseModel):
     """
     Estado completo do jogador.
@@ -46,6 +52,11 @@ class JogadorStatus(BaseModel):
     andar:     int                    = 0   # ← novo Lote 2A
     inventario: List[ItemInventario]  = []  # ← novo Lote 2A
     veneno_turnos: int                = 0   # ← Lote M: turnos de veneno restantes
+    # ── Lote 5: efeitos de status + passivos (para os badges na tela de combate) ──
+    efeitos:   List[EfeitoAtivo]      = []  # efeitos temporários ativos (veneno/fraqueza/…)
+    lifesteal: float                  = 0.0  # passivo Sanguessuga (% do dano que cura)
+    dom:       Optional[str]          = None # dom escolhido na criação (id) ou None
+    evasao_passiva: float             = 0.0  # passivo Ágil (inimigos erram mais)
 
 
 class InimigoInfo(BaseModel):

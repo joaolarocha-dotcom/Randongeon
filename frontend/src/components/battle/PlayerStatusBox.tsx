@@ -1,5 +1,6 @@
 import type { JogadorStatus } from "../../api/client";
 import { PokeHPBar } from "./PokeHPBar";
+import { StatusBadges } from "./StatusBadges";
 
 interface Props {
   jogador: JogadorStatus;
@@ -30,6 +31,7 @@ export function PlayerStatusBox({ jogador, displayedHP }: Props) {
       <div className="poke-exp-bar">
         <div className="poke-exp-fill" style={{ width: `${expPct}%` }} />
       </div>
+      <StatusBadges jogador={jogador} />
     </div>
   );
 }
