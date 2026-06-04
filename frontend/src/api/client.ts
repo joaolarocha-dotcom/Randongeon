@@ -36,6 +36,11 @@ export interface ItemInventario {
   bonus_esq: number;
 }
 
+export interface EfeitoAtivo {
+  tipo: string;    // "veneno" | "fraqueza" | "esquiva_reduzida"
+  turnos: number;
+}
+
 export interface JogadorStatus {
   nome: string;
   hp: number;
@@ -50,6 +55,11 @@ export interface JogadorStatus {
   andar: number;
   inventario: ItemInventario[];
   veneno_turnos?: number;
+  // Lote 5: efeitos de status + passivos (badges na tela de combate)
+  efeitos?: EfeitoAtivo[];
+  lifesteal?: number;
+  dom?: string | null;
+  evasao_passiva?: number;
 }
 
 export interface InimigoInfo {

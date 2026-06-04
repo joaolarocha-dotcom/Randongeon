@@ -34,6 +34,7 @@ from schemas import (
     CampaignVictoryResponse,
     ChestResponse,
     CombatActionResponse,
+    EfeitoAtivo,
     InimigoInfo,
     ItemInfo,
     ItemInventario,
@@ -102,6 +103,12 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         )
         for it in getattr(j, "inventario", [])
     ]
+    # Lote 5: efeitos de status ativos (só os com turnos > 0) para os badges.
+    efeitos = [
+        EfeitoAtivo(tipo=e.tipo, turnos=e.turnos)
+        for e in getattr(j, "efeitos", [])
+        if e.ativo()
+    ]
     return JogadorStatus(
         nome=j.nome,
         hp=j.hp,
@@ -116,6 +123,10 @@ def _jogador_status(state: GameState) -> JogadorStatus:
         andar=state.masmorra.andar,      # ← novo Lote 2A
         inventario=inventario,            # ← novo Lote 2A
         veneno_turnos=getattr(j, "veneno_turnos", 0),  # ← Lote M
+        efeitos=efeitos,                  # ← Lote 5: badges de status
+        lifesteal=getattr(j, "lifesteal", 0.0),        # ← Lote 5
+        dom=getattr(j, "dom", None),                   # ← Lote 5
+        evasao_passiva=getattr(j, "evasao_passiva", 0.0),  # ← Lote 5
     )
 
 

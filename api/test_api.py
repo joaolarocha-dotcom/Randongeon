@@ -24,6 +24,7 @@ import session as session_mod
 from jogo.entidades.inimigo import Inimigo, BandoDeGoblins
 from jogo.entidades.item import Item
 from jogo.entidades.loja import Loja
+from jogo.entidades.efeitos import Veneno, Fraqueza
 
 client = TestClient(app)
 
@@ -442,3 +443,29 @@ class TestDomAPI:
         jl = session_mod.get_session(load["session_id"]).masmorra.jogador
         assert jl.dom == "agil"
         assert jl.evasao_passiva == 0.10
+
+
+# ── Lote 5: efeitos de status expostos no JogadorStatus (badges na UI) ─────────
+
+class TestEfeitosNoStatus:
+    def test_sem_efeitos_lista_vazia(self):
+        sid = _nova_sessao("story")["session_id"]
+        j = client.get(f"/game/{sid}/status").json()["jogador"]
+        assert j["efeitos"] == []
+        assert j["dom"] is None
+        assert j["lifesteal"] == 0.0
+
+    def test_efeitos_ativos_aparecem_com_turnos(self):
+        sid = _nova_sessao("story")["session_id"]
+        jog = session_mod.get_session(sid).masmorra.jogador
+        jog.aplicar_efeito(Veneno(3))
+        jog.aplicar_efeito(Fraqueza(2))
+        efeitos = client.get(f"/game/{sid}/status").json()["jogador"]["efeitos"]
+        por_tipo = {e["tipo"]: e["turnos"] for e in efeitos}
+        assert por_tipo == {"veneno": 3, "fraqueza": 2}
+
+    def test_dom_e_passivos_expostos(self):
+        r = client.post("/game/new", json={"nome": "H", "modo": "story", "dom": "sanguessuga"}).json()
+        j = client.get(f"/game/{r['session_id']}/status").json()["jogador"]
+        assert j["dom"] == "sanguessuga"
+        assert j["lifesteal"] == 0.10
