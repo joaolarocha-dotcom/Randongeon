@@ -183,7 +183,7 @@ class TestGerarBoss:
 
     def test_boss_andar5_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 5
-        assert masmorra_padrao.gerar_boss().atk == 8
+        assert masmorra_padrao.gerar_boss().atk == 6   # recalibração C: era 8
 
     def test_boss_andar5_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 5
@@ -209,7 +209,7 @@ class TestGerarBoss:
 
     def test_boss_andar10_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 10
-        assert masmorra_padrao.gerar_boss().atk == 11
+        assert masmorra_padrao.gerar_boss().atk == 10   # recalibração C: era 11
 
     def test_boss_andar10_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 10
@@ -231,7 +231,7 @@ class TestGerarBoss:
 
     def test_boss_andar15_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 15
-        assert masmorra_padrao.gerar_boss().atk == 14
+        assert masmorra_padrao.gerar_boss().atk == 13   # recalibração C: era 14
 
     def test_boss_andar15_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 15
