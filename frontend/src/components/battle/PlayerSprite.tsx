@@ -18,8 +18,8 @@ export function PlayerSprite({ animClass = "", scale = 3 }: Props) {
     <div
       style={{
         position: "absolute",
-        left: "12%",
-        bottom: "6%",
+        left: "14%",
+        bottom: "10%",
         width: w,
         height: h,
         display: "flex",

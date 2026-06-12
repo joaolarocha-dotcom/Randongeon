@@ -95,7 +95,11 @@ export function LoadGameScreen() {
               <strong>{slot.toUpperCase()}</strong>
               {" "}
               {state
-                ? `— ${state.playerName} · andar ${state.andar} · ${state.modo}`
+                ? (() => {
+                    const xp = (state.jogador as Record<string, unknown>)?.xp as number | undefined;
+                    const lvl = xp != null ? Math.max(1, Math.floor(xp / 50) + 1) : 1;
+                    return `— ${state.playerName} · Lv.${lvl} · XP:${xp ?? 0} · Andar ${state.andar}`;
+                  })()
                 : "— vazio"}
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

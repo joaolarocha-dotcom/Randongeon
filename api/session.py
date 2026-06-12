@@ -62,3 +62,10 @@ def get_session(session_id: str) -> GameState:
 
 def delete_session(session_id: str) -> None:
     _sessions.pop(session_id, None)
+
+
+def restore_session(masmorra, game_mode: str) -> tuple[str, GameState]:
+    session_id = str(uuid.uuid4())
+    state = GameState(masmorra=masmorra, game_mode=game_mode)
+    _sessions[session_id] = state
+    return session_id, state

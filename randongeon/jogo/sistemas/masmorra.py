@@ -50,10 +50,10 @@ POOL_LOOT = [
 
 # Nomes temáticos de boss por andar (extraído para módulo no Lote 1).
 NOMES_BOSS = {
-    5:  "Arauto das Sombras",
-    10: "Senhor dos Corredores",
-    15: "Ceifador Eterno",
-    20: "Coração da Masmorra",
+    5:  "Yalergurath",
+    10: "Yalergurath",
+    15: "Yalergurath",
+    20: "Yalergurath",
 }
 
 LORE = [
@@ -274,7 +274,7 @@ class Masmorra:
         atk    =  8 + (fator *  3)
         xp     = 80 + (fator * 40)
         moedas = 25 + (fator *  8)
-        nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")
+        nome   = NOMES_BOSS.get(self.andar, "Yalergurath")
 
         return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas)
 

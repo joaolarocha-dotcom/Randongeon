@@ -77,6 +77,8 @@ export function MenuScreen() {
         className="poke-arena"
         style={{
           backgroundImage: `url(${bg})`,
+          backgroundSize: "115%",
+          backgroundPosition: "center 60%",
           flex: "0 0 55%",
           position: "relative",
         }}
@@ -89,8 +91,8 @@ export function MenuScreen() {
           }}
           style={{
             position: "absolute",
-            left: "50%",
-            bottom: "8%",
+            left: "22%",
+            bottom: "16%",
             transform: "translateX(-50%)",
             width: PLAYER_SPRITE.w * 3,
             height: PLAYER_SPRITE.h * 3,
@@ -102,8 +104,8 @@ export function MenuScreen() {
           className="platform-shadow"
           style={{
             position: "absolute",
-            left: "50%",
-            bottom: "5%",
+            left: "22%",
+            bottom: "12%",
             transform: "translateX(-50%)",
             width: PLAYER_SPRITE.w * 3.5,
             height: 16,

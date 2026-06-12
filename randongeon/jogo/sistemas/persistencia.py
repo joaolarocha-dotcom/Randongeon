@@ -86,6 +86,7 @@ def desserializar_estado(data: dict) -> tuple[Jogador, Masmorra, str]:
         raise ValueError("Campo 'modo' inválido no save.")
 
     jogador = desserializar_jogador(data["jogador"])
-    masmorra = Masmorra(jogador, GeradorSala(), modo=modo)
+    andar_max = 20 if modo == "story" else None
+    masmorra = Masmorra(jogador, GeradorSala(), andar_max=andar_max)
     masmorra.andar = int(data.get("andar", 0))
     return jogador, masmorra, modo

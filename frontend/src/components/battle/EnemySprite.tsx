@@ -23,8 +23,8 @@ export function EnemySprite({ inimigo, animClass = "", scale = 3 }: Props) {
     <div
       style={{
         position: "absolute",
-        right: "16%",
-        top: "16%",
+        right: "10%",
+        top: "18%",
         width: w,
         height: h,
         display: "flex",

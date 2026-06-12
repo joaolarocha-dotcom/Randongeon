@@ -20,15 +20,24 @@ from pydantic import BaseModel
 
 # ─── Entidades base ───────────────────────────────────────────────────────────
 
+class ItemInventario(BaseModel):
+    nome:      str
+    bonus_atk: int   = 0
+    bonus_hp:  int   = 0
+    bonus_esq: float = 0.0
+
+
 class JogadorStatus(BaseModel):
-    nome:   str
-    hp:     int
-    hp_max: int
-    atk:    int
-    esq:    float
-    xp:     int
-    nivel:  int
-    moedas: int
+    nome:       str
+    hp:         int
+    hp_max:     int
+    atk:        int
+    esq:        float
+    xp:         int
+    nivel:      int
+    moedas:     int
+    andar:      int = 0
+    inventario: List[ItemInventario] = []
 
 
 class InimigoInfo(BaseModel):
@@ -52,22 +61,30 @@ class LojaItemInfo(BaseModel):
     preco: int
 
 
+class LojaOferta(BaseModel):
+    nome:      str
+    preco:     int
+    bonus_atk: int   = 0
+    bonus_hp:  int   = 0
+    bonus_esq: float = 0.0
+
+
 class LojaInfo(BaseModel):
-    """Estrutura da loja esperada pelo gameStore (res.loja.itens[i])."""
-    itens: List[LojaItemInfo]
+    """Estrutura da loja esperada pelo gameStore (res.loja.ofertas[i])."""
+    ofertas: List[LojaOferta]
 
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 class NewGameRequest(BaseModel):
     nome:      str
-    game_mode: str = "infinite"          # "campaign" | "infinite"
+    modo:      str = "story"              # "story" | "infinite"
 
 
 class NewGameResponse(BaseModel):
     session_id: str
     jogador:    JogadorStatus
-    game_mode:  str = "infinite"
+    modo:       str = "story"
 
 
 class LoreResponse(BaseModel):
@@ -78,7 +95,7 @@ class StatusResponse(BaseModel):
     session_id: str
     jogador:    JogadorStatus
     andar:      int
-    game_mode:  str = "infinite"
+    modo:       str = "story"
 
 
 class SalaResponse(BaseModel):
@@ -122,9 +139,10 @@ class ShopBuyRequest(BaseModel):
 
 class ShopResponse(BaseModel):
     resultado: str                       # "compra_efetuada"|"sem_moedas"|"indice_invalido"|"saiu"
+    sucesso:   bool = False
     mensagem:  str
     jogador:   JogadorStatus
-    loja:      Optional[LojaInfo] = None  # FIX: LojaInfo (não itens_loja list)
+    loja:      Optional[LojaInfo] = None
 
 
 class QuitResponse(BaseModel):
@@ -140,3 +158,40 @@ class CampaignVictoryResponse(BaseModel):
     andar_final:   int
     xp_total:      int
     moedas_totais: int
+
+
+class UseItemRequest(BaseModel):
+    indice: int
+
+
+class UseItemResponse(BaseModel):
+    sucesso:  bool
+    mensagem: str
+    efeito:   dict = {}
+    jogador:  JogadorStatus
+
+
+# ─── Save / Load ─────────────────────────────────────────────────────────────
+
+class SaveStateResponse(BaseModel):
+    version:    int
+    savedAt:    str
+    playerName: str
+    andar:      int
+    modo:       str
+    jogador:    dict
+
+
+class SaveStateRequest(BaseModel):
+    version:    int
+    savedAt:    str
+    playerName: str
+    andar:      int
+    modo:       str
+    jogador:    dict
+
+
+class LoadGameResponse(BaseModel):
+    session_id: str
+    jogador:    JogadorStatus
+    modo:       str
