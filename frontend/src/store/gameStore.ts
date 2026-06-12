@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../api/client";
+import { api, isSessionLost } from "../api/client";
 import type {
   JogadorStatus,
   InimigoInfo,
@@ -16,6 +16,74 @@ function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;
   return "Erro desconhecido";
+}
+
+/** Aviso mostrado ao usuário quando a run é encerrada por perda de sessão. */
+const SESSION_LOST_MSG =
+  "Sua sessão expirou (o servidor foi reiniciado). Inicie uma nova run.";
+
+function normalizeJogador(jogador: JogadorStatus): JogadorStatus {
+  return {
+    ...jogador,
+    nivel: jogador.nivel ?? Math.max(1, Math.floor(jogador.xp / 50) + 1),
+  };
+}
+
+function pick<T>(opcoes: T[]): T {
+  return opcoes[Math.floor(Math.random() * opcoes.length)];
+}
+
+/**
+ * Monta as falas de abertura do combate.
+ *
+ * Tom: sombrio com toques de humor. Cada tipo de inimigo (e o boss) tem suas
+ * próprias linhas, escolhidas ao acaso para a entrada não ficar repetitiva —
+ * substitui o antigo "Um X selvagem apareceu! / Vai, fulano!" estilo Pokémon.
+ */
+function buildEnemyIntro(
+  inimigo: InimigoInfo,
+  jogador: JogadorStatus,
+  tipo: "inimigo" | "boss"
+): string[] {
+  const nome = inimigo.nome;
+
+  if (tipo === "boss" || inimigo.dificuldade === 3) {
+    return pick<string[]>([
+      [`${nome} ergue-se das sombras. O ar fica pesado.`, `A saída desaparece atrás de você. Boa sorte — vai precisar.`],
+      [`${nome} encara você sem nenhuma pressa.`, `Não há para onde correr desta vez, ${jogador.nome}.`],
+      [`O chão treme: ${nome} despertou.`, `Respira fundo. Pode ser o último fôlego.`],
+    ]);
+  }
+
+  switch (inimigo.tipo_especial) {
+    case "nosferatu":
+      return pick<string[]>([
+        [`${nome} desperta com a sede de sempre.`, `Ele observa seu pescoço com um sorriso paciente.`],
+        [`Um ${nome} emerge entre os caixões.`, `"Sangue novo", ele sussurra. Que gentil.`],
+      ]);
+    case "golem":
+      return pick<string[]>([
+        [`Um ${nome} se levanta — a rocha range como ossos antigos.`, `Bater nele vai doer mais em você do que nele.`],
+        [`${nome} bloqueia o corredor. Literalmente.`],
+      ]);
+    case "banshee":
+      return pick<string[]>([
+        [`O lamento de uma ${nome} corta o ar.`, `Tapar os ouvidos não vai adiantar muito.`],
+        [`Uma ${nome} flutua à sua frente, chorando.`, `Não é de tristeza. É de fome.`],
+      ]);
+    case "horda":
+      return pick<string[]>([
+        [`Goblins irrompem de todos os cantos.`, `Eles mal sabem contar até três, mas sabem te cercar.`],
+        [`Uma horda de goblins range os dentes.`, `Um de cada vez — por pura falta de educação.`],
+      ]);
+    default:
+      return pick<string[]>([
+        [`Um ${nome} bloqueia seu caminho.`],
+        [`${nome} surge das sombras, faminto.`],
+        [`Algo se arrasta no escuro: um ${nome}.`],
+        [`Um ${nome} range os dentes e avança.`],
+      ]);
+  }
 }
 
 /**
@@ -43,6 +111,7 @@ export type Screen =
   | "tutorials"
   | "load_game"
   | "settings"
+  | "leaderboard"
   | "title"
   | "lore"
   | "menu"
@@ -50,7 +119,8 @@ export type Screen =
   | "combat"
   | "chest"
   | "shop"
-  | "game_over";
+  | "game_over"
+  | "victory";
 
 interface CombatLog {
   mensagem: string;
@@ -90,6 +160,7 @@ interface GameStore {
   combatLog: CombatLog[];
   descricaoSala: string;
   gameOverMsg: string;
+  victoryMsg: string;
   loading: boolean;
   error: string | null;
 
@@ -99,6 +170,8 @@ interface GameStore {
   displayedPlayerHP: number;
   /** HP exibido (anima rumo a inimigo.hp). */
   displayedEnemyHP: number;
+  /** Lote 4b: boss em 2ª fase/fúria (Coração da Masmorra renasceu). */
+  bossEnraged: boolean;
   /** Fila de mensagens a exibir na BattleDialog. */
   dialogQueue: string[];
   /** Mensagem atual sendo digitada (null = nenhuma). */
@@ -113,10 +186,11 @@ interface GameStore {
   goToTutorials: () => void;
   goToLoadGame: () => void;
   goToSettings: () => void;
+  goToLeaderboard: () => void;
   goToTitle: (modo?: Modo) => void;
 
   // Actions principais (jogo)
-  startGame: (nome: string) => Promise<void>;
+  startGame: (nome: string, dom?: string | null) => Promise<void>;
   loadFromSave: (save: SaveState) => Promise<void>;
   fetchLore: () => Promise<void>;
   goToMenu: () => void;
@@ -157,12 +231,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   combatLog: [],
   descricaoSala: "",
   gameOverMsg: "",
+  victoryMsg: "",
   loading: false,
   error: null,
 
   animPhase: "idle",
   displayedPlayerHP: 0,
   displayedEnemyHP: 0,
+  bossEnraged: false,
   dialogQueue: [],
   currentDialog: null,
   floorTransitionAndar: null,
@@ -178,25 +254,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
   goToTutorials: () => set({ screen: "tutorials" }),
   goToLoadGame: () => set({ screen: "load_game" }),
   goToSettings: () => set({ screen: "settings" }),
+  goToLeaderboard: () => set({ screen: "leaderboard" }),
   goToTitle: (modo: Modo = "story") => set({ screen: "title", pendingModo: modo, error: null }),
 
   // ───────── Jogo ─────────
 
-  startGame: async (nome: string) => {
+  startGame: async (nome: string, dom: string | null = null) => {
     set({ loading: true, error: null });
     try {
       const modo = get().pendingModo;
-      const res = await api.newGame(nome, modo);
+      const res = await api.newGame(nome, modo, dom);
+      const jogador = normalizeJogador(res.jogador);
       set({
         sessionId: res.session_id,
         modo: res.modo,
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador,
+        displayedPlayerHP: jogador.hp,
         screen: "lore",
         loading: false,
       });
       audio.playMusic("bgm_title");
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -205,16 +284,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const res = await api.loadGame(save);
+      const jogador = normalizeJogador(res.jogador);
       set({
         sessionId: res.session_id,
         modo: res.modo,
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador,
+        displayedPlayerHP: jogador.hp,
         screen: "menu",
         loading: false,
       });
       audio.playMusic("bgm_dungeon");
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -249,29 +330,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     try {
       const res = await api.advance(sessionId);
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador: jogadorAtualizado,
+        displayedPlayerHP: jogadorAtualizado.hp,
         descricaoSala: res.descricao,
         floorTransitionAndar: null,
       });
 
       if (res.tipo === "inimigo" || res.tipo === "boss") {
         const inimigo = res.inimigo!;
-        const intro = [
-          `Um ${inimigo.nome} selvagem apareceu!`,
-          `Vai, ${res.jogador.nome}!`,
-        ];
+        const intro = buildEnemyIntro(inimigo, jogadorAtualizado, res.tipo);
         set({
           inimigo,
           displayedEnemyHP: inimigo.hp_max,
+          bossEnraged: false,        // Lote 4b: começa sem fúria; só após renascer
           screen: "combat",
           loading: false,
           animPhase: "intro",
           // Inicia com o primeiro item e enfileira o resto
           currentDialog: intro[0],
           dialogQueue: intro.slice(1),
-          lastXpSnapshot: res.jogador.xp,
+          lastXpSnapshot: jogadorAtualizado.xp,
         });
         audio.playMusic(getArenaMusic(res.andar, res.tipo));
       } else if (res.tipo === "item") {
@@ -285,6 +365,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, floorTransitionAndar: null });
     }
   },
@@ -298,6 +379,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatAttack(sessionId);
       handleCombatResult(res, "attack", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -311,6 +393,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatDodge(sessionId);
       handleCombatResult(res, "dodge", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -324,6 +407,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const res = await api.combatFlee(sessionId);
       handleCombatResult(res, "flee", set, get);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false, animPhase: "idle" });
     }
   },
@@ -335,12 +419,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await api.inventoryUse(sessionId, indice);
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
+        jogador: jogadorAtualizado,
         loading: false,
       });
       get().enqueueDialog(res.mensagem);
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -352,10 +438,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await api.chestOpen(sessionId);
-      set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, loading: false });
+      const jogadorAtualizado = normalizeJogador(res.jogador);
+      set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, loading: false });
       if (res.tipo === "mimico") {
         const inimigo = res.inimigo!;
-        const intro = [res.mensagem, `O ${inimigo.nome} ataca!`];
+        const intro = [res.mensagem, `O baú tinha dentes — e fome. O ${inimigo.nome} avança!`];
         set({
           inimigo,
           displayedEnemyHP: inimigo.hp_max,
@@ -364,10 +451,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
           animPhase: "intro",
           currentDialog: intro[0],
           dialogQueue: intro.slice(1),
-          lastXpSnapshot: res.jogador.xp,
+          lastXpSnapshot: jogadorAtualizado.xp,
         });
         // Mímico em andar de boss usa BGM de boss; senão, BGM normal
-        audio.playMusic(getArenaMusic(res.jogador.andar));
+        audio.playMusic(getArenaMusic(jogadorAtualizado.andar));
       } else {
         audio.playSfx("sfx_item_get");
         set({
@@ -378,6 +465,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -387,7 +475,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sessionId) return;
     audio.playSfx("sfx_menu_cancel");
     const res = await api.chestIgnore(sessionId);
-    set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, screen: "menu" });
+    const jogadorAtualizado = normalizeJogador(res.jogador);
+    set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, screen: "menu" });
     audio.playMusic("bgm_dungeon");
   },
 
@@ -403,9 +492,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       } else {
         audio.playSfx("sfx_menu_cancel");
       }
+      const jogadorAtualizado = normalizeJogador(res.jogador);
       set({
-        jogador: res.jogador,
-        displayedPlayerHP: res.jogador.hp,
+        jogador: jogadorAtualizado,
+        displayedPlayerHP: jogadorAtualizado.hp,
         loja: res.loja || null,
         loading: false,
       });
@@ -414,6 +504,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         audio.playMusic("bgm_dungeon");
       }
     } catch (e) {
+      if (isSessionLost(e)) { get().reset(); set({ error: SESSION_LOST_MSG }); return; }
       set({ error: errorMessage(e), loading: false });
     }
   },
@@ -423,20 +514,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!sessionId) return;
     audio.playSfx("sfx_menu_cancel");
     const res = await api.shopLeave(sessionId);
-    set({ jogador: res.jogador, displayedPlayerHP: res.jogador.hp, loja: null, screen: "menu" });
+    const jogadorAtualizado = normalizeJogador(res.jogador);
+    set({ jogador: jogadorAtualizado, displayedPlayerHP: jogadorAtualizado.hp, loja: null, screen: "menu" });
     audio.playMusic("bgm_dungeon");
   },
 
   quit: async () => {
-    const { sessionId } = get();
-    if (!sessionId) return;
+    const { sessionId, jogador } = get();
     cancelAllTimeouts();
+    // Sem sessão: encerra para o menu sem travar.
+    if (!sessionId) {
+      get().reset();
+      return;
+    }
     try {
       const res = await api.quit(sessionId);
-      set({ gameOverMsg: res.mensagem, jogador: res.jogador, screen: "game_over" });
+      const jogadorAtualizado = normalizeJogador(res.jogador);
+      set({ gameOverMsg: res.mensagem, jogador: jogadorAtualizado, screen: "game_over" });
       audio.playJingle("bgm_game_over");
     } catch (e) {
-      set({ error: errorMessage(e) });
+      // Sessão perdida (servidor reiniciou): volta ao menu com aviso.
+      if (isSessionLost(e)) {
+        get().reset();
+        set({ error: SESSION_LOST_MSG });
+        return;
+      }
+      // Qualquer outra falha: ainda assim encerra a run para o game over,
+      // usando o estado local — DESISTIR nunca deve ficar sem efeito.
+      set({
+        gameOverMsg: `${jogador?.nome ?? "Você"} desistiu da jornada.`,
+        screen: "game_over",
+      });
+      audio.playJingle("bgm_game_over");
     }
   },
 
@@ -470,11 +579,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       combatLog: [],
       descricaoSala: "",
       gameOverMsg: "",
+      victoryMsg: "",
       loading: false,
       error: null,
       animPhase: "idle",
       displayedPlayerHP: 0,
       displayedEnemyHP: 0,
+      bossEnraged: false,
       dialogQueue: [],
       currentDialog: null,
       floorTransitionAndar: null,
@@ -562,6 +673,7 @@ function handleCombatResult(
   get: StoreGet
 ) {
   const log = get().combatLog;
+  const nivelAntes = get().jogador?.nivel ?? 1;   // p/ detectar level-up
   const tipo: CombatLog["tipo"] =
     res.resultado === "vitoria"
       ? "vitoria"
@@ -572,14 +684,25 @@ function handleCombatResult(
       : "dano";
 
   const newLog: CombatLog[] = [...log, { mensagem: res.mensagem, tipo }];
+  const jogadorAtualizado = normalizeJogador(res.jogador);
+  const subiuNivel = jogadorAtualizado.nivel > nivelAntes;   // Lote 6/feedback
 
-  // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente)
+  // Atualiza dados base (sem mexer no displayed HP — barras animam separadamente).
+  // Lote E: no "proximo" (novo goblin do bando), reseta a barra de HP exibida
+  // para o HP cheio do novo inimigo — senão ela animaria do goblin morto (~0)
+  // para o HP do novo, parecendo uma cura.
   set({
-    jogador: res.jogador,
+    jogador: jogadorAtualizado,
     inimigo: res.inimigo ?? null,
     combatLog: newLog,
     loading: false,
+    ...(res.resultado === "proximo" && res.inimigo
+      ? { displayedEnemyHP: res.inimigo.hp_max }
+      : {}),
   });
+  if (res.resultado === "proximo") {
+    audio.playSfx("sfx_enemy_defeat");   // um goblin caiu; o próximo avança
+  }
 
   // SFX por tipo de ação
   if (action === "attack") {
@@ -592,13 +715,28 @@ function handleCombatResult(
     else audio.playSfx("sfx_flee_fail");
   }
 
+  // Lote 6/feedback: subiu de nível neste combate → toca o jingle de level-up
+  // (a mensagem comemorativa já vem em res.mensagem, vinda da API).
+  if (subiuNivel) {
+    scheduleTimeout(() => audio.playSfx("sfx_level_up"), 650);
+  }
+
   // Enfileira mensagens
   const mensagens = splitMensagem(res.mensagem);
 
   // Resolução final
-  if (res.resultado === "vitoria") {
-    const xpGanho = res.jogador.xp - (get().lastXpSnapshot ?? 0);
-    if (xpGanho > 0) mensagens.push(`${res.jogador.nome} ganhou ${xpGanho} de XP!`);
+  if (res.resultado === "vitoria_campanha") {
+    // Lote G: boss final do andar 20 derrotado → tela de vitória da campanha.
+    set({ animPhase: "victory", victoryMsg: res.mensagem });
+    appendDialog(set, get, mensagens);
+    audio.playSfx("sfx_enemy_defeat");
+    scheduleTimeout(() => {
+      set({ screen: "victory", animPhase: "idle", currentDialog: null, dialogQueue: [] });
+      audio.playJingle("bgm_victory");
+    }, 4000);
+  } else if (res.resultado === "vitoria") {
+    const xpGanho = jogadorAtualizado.xp - (get().lastXpSnapshot ?? 0);
+    if (xpGanho > 0) mensagens.push(`${jogadorAtualizado.nome} ganhou ${xpGanho} de XP!`);
     set({ animPhase: "victory" });
     appendDialog(set, get, mensagens);
     audio.playSfx("sfx_enemy_defeat");
@@ -611,17 +749,33 @@ function handleCombatResult(
     }, 4500);
   } else if (res.resultado === "derrota") {
     set({ animPhase: "defeat" });
-    appendDialog(set, get, [...mensagens, `${res.jogador.nome} foi derrotado...`]);
+    appendDialog(set, get, [...mensagens, `${jogadorAtualizado.nome} foi derrotado...`]);
     scheduleTimeout(() => {
       set({
         screen: "game_over",
-        gameOverMsg: `${res.jogador.nome} foi derrotado no andar ${res.jogador.andar}.`,
+        gameOverMsg: `${jogadorAtualizado.nome} foi derrotado no andar ${jogadorAtualizado.andar}.`,
         animPhase: "idle",
         currentDialog: null,
         dialogQueue: [],
       });
       audio.playJingle("bgm_game_over");
     }, 3500);
+  } else if (res.resultado === "renasceu") {
+    // Lote 4b: o Coração da Masmorra renasceu (2ª fase). NÃO abrir a tela de
+    // vitória — a luta continua. O boss volta a ~50% (a barra sobe rumo a
+    // inimigo.hp) e entra em fúria (badge no status do inimigo).
+    set({ animPhase: "enemy_action", bossEnraged: true });
+    appendDialog(set, get, mensagens);
+    audio.playSfx("sfx_enemy_defeat");                 // o golpe derruba o boss…
+    scheduleTimeout(() => audio.playSfx("sfx_level_up"), 450);  // …e ele ressurge em fúria
+    // Volta ao idle quando o diálogo esvaziar (fallback, igual ao "continua").
+    scheduleTimeout(() => {
+      const s = get();
+      if (s.screen === "combat" && s.inimigo && s.inimigo.hp > 0 &&
+          s.jogador && s.jogador.hp > 0 && s.animPhase !== "idle") {
+        set({ animPhase: "idle" });
+      }
+    }, 1800);
   } else if (res.resultado === "fuga") {
     set({ animPhase: "flee" });
     appendDialog(set, get, mensagens);

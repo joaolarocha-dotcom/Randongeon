@@ -4,6 +4,7 @@ import { MainMenuScreen } from "./screens/MainMenuScreen";
 import { TutorialsScreen } from "./screens/TutorialsScreen";
 import { LoadGameScreen } from "./screens/LoadGameScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { LeaderboardScreen } from "./screens/LeaderboardScreen";
 import { TitleScreen } from "./screens/TitleScreen";
 import { LoreScreen } from "./screens/LoreScreen";
 import { MenuScreen } from "./screens/MenuScreen";
@@ -11,6 +12,7 @@ import { CombatScreen } from "./screens/CombatScreen";
 import { ChestScreen } from "./screens/ChestScreen";
 import { ShopScreen } from "./screens/ShopScreen";
 import { GameOverScreen } from "./screens/GameOverScreen";
+import { VictoryScreen } from "./screens/VictoryScreen";
 import { FloorTransition } from "./components/transitions/FloorTransition";
 import { useFullscreen } from "./hooks/useFullscreen";
 import "./styles/global.css";
@@ -37,6 +39,7 @@ function App() {
       {screen === "tutorials" && <TutorialsScreen />}
       {screen === "load_game" && <LoadGameScreen />}
       {screen === "settings" && <SettingsScreen />}
+      {screen === "leaderboard" && <LeaderboardScreen />}
       {screen === "title" && <TitleScreen />}
       {screen === "lore" && <LoreScreen />}
       {screen === "menu" && <MenuScreen />}
@@ -44,6 +47,7 @@ function App() {
       {screen === "chest" && <ChestScreen />}
       {screen === "shop" && <ShopScreen />}
       {screen === "game_over" && <GameOverScreen />}
+      {screen === "victory" && <VictoryScreen />}
 
       {floorTransitionAndar !== null && <FloorTransition andar={floorTransitionAndar} />}
     </div>

@@ -80,8 +80,12 @@ def _set_atributos_especiais(inimigo: Inimigo) -> None:
     inimigo.bonus_atk_por_turno = 0
     inimigo.chance_atordoar     = 0.0
     inimigo.tipo_especial       = None
-    inimigo.chance_miss         = 0.10   # v3.1
-    inimigo.chance_drop         = 0.10   # v3.1
+    inimigo.chance_miss            = 0.10   # v3.1
+    inimigo.chance_drop            = 0.10   # v3.1
+    inimigo.chance_veneno          = 0.0    # Lote M
+    inimigo.chance_fraqueza        = 0.0    # Lote B2
+    inimigo.chance_esquiva_debuff  = 0.0    # Lote B2
+    inimigo.esquiva                = 0.0    # Lote 2 (evasão)
 
 
 @pytest.fixture

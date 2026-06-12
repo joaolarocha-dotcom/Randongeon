@@ -59,8 +59,12 @@ def dummy_inimigo(
     i.bonus_atk_por_turno = 0
     i.chance_atordoar     = 0.0
     i.tipo_especial       = None
-    i.chance_miss         = 0.10
-    i.chance_drop         = 0.10
+    i.chance_miss            = 0.10
+    i.chance_drop            = 0.10
+    i.chance_veneno          = 0.0
+    i.chance_fraqueza        = 0.0
+    i.chance_esquiva_debuff  = 0.0
+    i.esquiva                = 0.0
     return i
 
 
@@ -155,11 +159,11 @@ class TestEAndarDeBoss:
 
 class TestGerarBoss:
     """
-    Fórmulas v3 (fator = andar // 5):
-      HP     = 40 + fator * 18   →  5/10/15/20: 58/76/94/112
-      ATK    =  8 + fator *  3   →  5/10/15/20: 11/14/17/20
-      XP     = 80 + fator * 40   →  5/10/15/20: 120/160/200/240
-      moedas = 25 + fator *  8   →  5/10/15/20: 33/41/49/57
+    Fórmulas v3.2 / config I (fator = andar // 5):
+      HP     = 20 + fator * 20   →  5/10/15/20: 40/60/80/100
+      ATK    =  5 + fator *  3   →  5/10/15/20: 8/11/14/17
+      XP     = 80 + fator * 40   →  5/10/15/20: 120/160/200/240  (inalterado)
+      moedas = 25 + fator *  8   →  5/10/15/20: 33/41/49/57      (inalterado)
     """
 
     def test_retorna_inimigo(self, masmorra_padrao):
@@ -175,11 +179,11 @@ class TestGerarBoss:
 
     def test_boss_andar5_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 5
-        assert masmorra_padrao.gerar_boss().hp == 58
+        assert masmorra_padrao.gerar_boss().hp == 40
 
     def test_boss_andar5_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 5
-        assert masmorra_padrao.gerar_boss().atk == 11
+        assert masmorra_padrao.gerar_boss().atk == 6   # recalibração C: era 8
 
     def test_boss_andar5_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 5
@@ -201,11 +205,11 @@ class TestGerarBoss:
 
     def test_boss_andar10_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 10
-        assert masmorra_padrao.gerar_boss().hp == 76
+        assert masmorra_padrao.gerar_boss().hp == 60
 
     def test_boss_andar10_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 10
-        assert masmorra_padrao.gerar_boss().atk == 14
+        assert masmorra_padrao.gerar_boss().atk == 10   # recalibração C: era 11
 
     def test_boss_andar10_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 10
@@ -223,11 +227,11 @@ class TestGerarBoss:
 
     def test_boss_andar15_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 15
-        assert masmorra_padrao.gerar_boss().hp == 94
+        assert masmorra_padrao.gerar_boss().hp == 80
 
     def test_boss_andar15_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 15
-        assert masmorra_padrao.gerar_boss().atk == 17
+        assert masmorra_padrao.gerar_boss().atk == 13   # recalibração C: era 14
 
     def test_boss_andar15_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 15
@@ -245,11 +249,11 @@ class TestGerarBoss:
 
     def test_boss_andar20_hp(self, masmorra_padrao):
         masmorra_padrao.andar = 20
-        assert masmorra_padrao.gerar_boss().hp == 112
+        assert masmorra_padrao.gerar_boss().hp == 100
 
     def test_boss_andar20_atk(self, masmorra_padrao):
         masmorra_padrao.andar = 20
-        assert masmorra_padrao.gerar_boss().atk == 20
+        assert masmorra_padrao.gerar_boss().atk == 17
 
     def test_boss_andar20_xp(self, masmorra_padrao):
         masmorra_padrao.andar = 20
@@ -534,3 +538,23 @@ class TestModoCampanha:
     def test_andar_max_nao_afeta_gerador(self, jogador_padrao):
         m = Masmorra(jogador_padrao, andar_max=20)
         assert isinstance(m.gerador, GeradorSala)
+
+class TestCalcularScore:
+    """Lote H: score da run = jogador.pontuacao + andar * 100."""
+
+    def test_score_inicial_e_zero(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)              # andar 0, pontuacao 0
+        assert m.calcular_score() == 0
+
+    def test_score_combina_pontuacao_e_andar(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)
+        m.andar = 7
+        jogador_padrao.ganhar_moedas(30)
+        assert m.calcular_score() == jogador_padrao.pontuacao + 700
+
+    def test_andar_mais_fundo_da_score_maior(self, jogador_padrao):
+        m = Masmorra(jogador_padrao)
+        m.andar = 3
+        score_raso = m.calcular_score()
+        m.andar = 12
+        assert m.calcular_score() > score_raso

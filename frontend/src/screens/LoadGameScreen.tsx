@@ -134,12 +134,12 @@ export function LoadGameScreen() {
 
       <div className="poke-box" style={{ padding: "8px 10px" }}>
         <div style={{ fontSize: "var(--font-size-sm)", marginBottom: 6 }}>
-          IMPORTAR ARQUIVO .json
+          IMPORTAR ARQUIVO .txt
         </div>
         <input
           ref={fileRef}
           type="file"
-          accept="application/json"
+          accept=".txt,.json,text/plain,application/json"
           onChange={onImport}
           style={{ fontSize: "var(--font-size-sm)" }}
         />

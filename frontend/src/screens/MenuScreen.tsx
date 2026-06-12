@@ -5,7 +5,7 @@ import { PLAYER_SPRITE, COIN_ICON, FALLBACK_SPRITE_PATH } from "../assets/sprite
 import { getArenaBg } from "../assets/bgMap";
 import { audio } from "../components/audio/AudioEngine";
 import { api } from "../api/client";
-import { SAVE_SLOTS, type SaveSlot, putSave } from "../services/saveService";
+import { SAVE_SLOTS, type SaveSlot, putSave, exportSaveToFile } from "../services/saveService";
 
 type ExitMode = null | "menu" | "exit-save" | "exit-confirm";
 
@@ -31,6 +31,20 @@ export function MenuScreen() {
       audio.playSfx("sfx_item_get");
     } catch (e) {
       setSaveMsg(`Falha ao salvar: ${(e as Error).message}`);
+    } finally {
+      setSavePickerOpen(false);
+    }
+  };
+
+  const doExportFile = async () => {
+    if (!sessionId) return;
+    try {
+      const state = await api.saveGame(sessionId);
+      exportSaveToFile(state);
+      setSaveMsg("Run exportada para um arquivo .txt (confira seus downloads).");
+      audio.playSfx("sfx_item_get");
+    } catch (e) {
+      setSaveMsg(`Falha ao exportar: ${(e as Error).message}`);
     } finally {
       setSavePickerOpen(false);
     }
@@ -239,6 +253,15 @@ export function MenuScreen() {
                 {slot.toUpperCase()}
               </button>
             ))}
+            <button
+              className="poke-btn"
+              onClick={doExportFile}
+              disabled={loading}
+              style={{ padding: "4px 8px", fontSize: "var(--font-size-xs)" }}
+              title="Baixar a run atual como arquivo .txt"
+            >
+              ⬇ .TXT
+            </button>
             <button
               className="poke-btn"
               onClick={() => setSavePickerOpen(false)}

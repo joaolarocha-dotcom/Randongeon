@@ -16,11 +16,18 @@ from jogo.entidades.loja import Loja
 # ── Dados estáticos das salas ─────────────────────────────────────────────────
 
 DESCRICOES_SALA = [
-    "Uma sala escura com cheiro de mofo.",
-    "Uma caverna iluminada por cristais brilhantes.",
-    "Um corredor antigo repleto de ossos espalhados.",
-    "Uma câmara úmida com paredes cobertas de musgo.",
-    "Um salão vazio onde ecos distantes se perdem nas sombras.",
+    "Uma sala úmida que fede a mofo e a coisas que era melhor não identificar.",
+    "Cristais pálidos pulsam nas paredes, como se a caverna respirasse junto com você.",
+    "Ossos cobrem o chão. Alguns ainda parecem surpresos.",
+    "Musgo engole as paredes; o silêncio aqui tem peso próprio.",
+    "Um salão vazio onde seus passos voltam como ecos que não são bem os seus.",
+    "Marcas de garras sobem pelas paredes até o teto. Subindo. Sempre subindo.",
+    "Velas acesas há séculos teimam em não apagar. Ninguém pediu companhia.",
+    "Uma poça escura reflete um teto que não está lá.",
+    "O ar é frio e parado, como o de um lugar acostumado a esperar.",
+    "Inscrições gastas cobrem a parede. A única legível diz: 'volte'.",
+    "Correntes enferrujadas pendem do nada, balançando sem vento.",
+    "Um cheiro doce e errado paira no ar. Melhor não procurar a fonte.",
 ]
 
 CATALOGO_ITENS = [
@@ -32,6 +39,11 @@ CATALOGO_ITENS = [
     Item("Elixir do Mestre Mosca",bonus_esq=0.1),
     Item("Tônico do Guerreiro",   bonus_atk=1, bonus_hp=2),
 ]
+
+# Faixas do sorteio de sala (1..20). Item subiu de 10% (4-5) para 15% (4-6)
+# para dar mais loot — balanceamento que compensa a cura parcial no level-up.
+SORTE_MAX_LOJA = 3   # 1-3  → loja   (15%)
+SORTE_MAX_ITEM = 6   # 4-6  → item   (15%)  | 7-20 → inimigo (70%)
 
 
 
@@ -74,17 +86,17 @@ class GeradorSala:
             raise ValueError("O andar deve ser >= 1.")
 
         descricao = random.choice(DESCRICOES_SALA)
-        
-        # Sorteio (1 a 20)
+
+        # Sorteio (1..20). Loja 1-3 (15%), item 4-6 (15%), resto inimigo (70%).
         sorte = random.randint(1, 20)
 
-        if sorte <= 3:  # 15% chance de Loja
+        if sorte <= SORTE_MAX_LOJA:        # 15% chance de Loja
             return self.gerar_loja()
 
-        elif sorte <= 5:  # 10% chance de Item (sorte 4 ou 5)
+        elif sorte <= SORTE_MAX_ITEM:      # 15% chance de Item (era 10%)
             return self.gerar_item(descricao)
 
-        else:  # 75% chance de Inimigo
+        else:                              # 70% chance de Inimigo
             return self.gerar_inimigo(andar, descricao)
 
     def gerar_loja(self) -> tuple:

@@ -1,54 +1,43 @@
-# randongeon/jogo/sistemas/masmorra.py
-
-"""
-Módulo responsável pelo sistema central da masmorra.
-
-v3.1 — Mecânica de miss + sistema de loot.
-
-Mudanças v3:
-  - resolver_combate(): processa mecânicas especiais (Vampiro, Caçador, Banshee).
-  - tentar_fuga(inimigo=None): modificador de fuga por tipo.
-
-Mudanças v3.1:
-  - CHANCE_MISS_JOGADOR: constante de chance de erro do jogador (10%).
-  - _rolar_miss(): rola miss para jogador ou inimigo antes de aplicar dano.
-  - _rolar_loot(): rola chance de drop de item ao derrotar inimigo.
-  - POOL_LOOT: itens simples que podem ser dropados por inimigos.
-    Poções menores — não requer sala de baú nem mercador.
-
-Lote 1:
-  - NOMES_BOSS extraído para constante de módulo (testável externamente).
-  - __init__: aceita andar_max opcional para Modo Campanha.
-"""
-
 import random
 import time
 from typing import Optional
 
-from jogo.entidades.jogador import Jogador
-from jogo.entidades.inimigo import Inimigo
+from jogo.entidades.jogador import Jogador, mensagem_level_up
+from jogo.entidades.inimigo import (
+    Inimigo, CoracaoDaMasmorra, LOOT_PADRAO, MENSAGEM_RENASCIMENTO,
+    mensagem_veneno, mensagem_fraqueza, mensagem_esquiva_reduzida,
+)
+from jogo.entidades.efeitos import Fraqueza, EsquivaReduzida
 from jogo.entidades.item    import Item
 from jogo.sistemas.gerador  import GeradorSala
 from jogo.entidades.loja    import Loja
 
+CHANCE_FUGA                  = 0.5
+BOSS_A_CADA_ANDARES          = 5
+BOSS_A_CADA_ANDARES_INFINITO = 3
+CHANCE_MISS_JOGADOR          = 0.10
 
-# ── Constantes ────────────────────────────────────────────────────────────────
+# ── Curva de stats dos bosses (recalibração) — TUNÁVEL ────────────────────────
+# hp = BOSS_HP_BASE + fator*BOSS_HP_STEP ; atk = BOSS_ATK_BASE + fator*BOSS_ATK_STEP
+# (fator = andar // 5 no story → 1,2,3,4 nos andares 5/10/15/20).
+#
+# Recalibração (sim_recalibracao.py): o diagnóstico Monte Carlo mostrou que 61%
+# das runs morriam no PRIMEIRO boss (A5), com win-rate de só ~38% — o ATK do boss
+# (8) era a causa, não o HP. Config "C" (só ATK): baixa o ATK do início mantendo
+# TODO o HP e o ATK do boss final (A20=17) intactos. Curva de ATK resultante:
+#   andar:   5    10    15    20
+#   ATK:     6    10    13    17   (= round(2 + fator*3.75); antes 8/11/14/17)
+# A5 win sobe de ~38% → ~70% e a campanha de ~11% → ~22%, sem aliviar o A20.
+BOSS_HP_BASE  = 20
+BOSS_HP_STEP  = 20
+BOSS_ATK_BASE = 2
+BOSS_ATK_STEP = 3.75
 
-CHANCE_FUGA          = 0.5
-BOSS_A_CADA_ANDARES  = 5
-CHANCE_MISS_JOGADOR  = 0.10   # v3.1: 10% base de errar ataque
+# POOL_LOOT mantido por compatibilidade (API e testes importam daqui). A partir
+# do Lote C ele é o pool PADRÃO definido em inimigo.py; cada inimigo especial tem
+# o seu próprio via inimigo.tabela_loot() (polimorfismo).
+POOL_LOOT = LOOT_PADRAO
 
-# Pool de itens simples que inimigos podem dropar ao morrer.
-# Poções menores — recompensa pequena sem depender de baús ou mercador.
-POOL_LOOT = [
-    Item("Poção Menor de Cura",    bonus_hp=3),
-    Item("Erva Medicinal",          bonus_hp=2),
-    Item("Fragmento de Cristal",   bonus_atk=1),
-    Item("Pó de Velocidade",       bonus_esq=0.03),
-    Item("Poção de Cura",          bonus_hp=5),
-]
-
-# Nomes temáticos de boss por andar (extraído para módulo no Lote 1).
 NOMES_BOSS = {
     5:  "Yalergurath",
     10: "Yalergurath",
@@ -91,30 +80,17 @@ LORE = [
     "algo te espera na escuridão.",
 ]
 
-
-# ── Auxiliares do módulo ──────────────────────────────────────────────────────
-
 def _indicador_especial(inimigo: Inimigo) -> str:
-    """
-    Retorna string de indicador visual para o tipo especial do inimigo.
-    Exibida ao lado do nome durante o combate interativo.
-    """
     indicadores = {
-        "vampiro": " 🩸 [Regeneração 20%]",
-        "golem":   " 🪨 [Armadura: 2]",
-        "cacador": " ⚔️  [ATK +1/turno]",
-        "horda":   " 👹 [Horda]",
-        "banshee": " 💀 [Atordoamento 30%]",
+        "nosferatu": " 🩸 [Regeneração 20%]",
+        "golem":     " 🪨 [Armadura: 2]",
+        "horda":     " 👹 [Horda]",
+        "banshee":   " 💀 [Atordoamento 30%]",
     }
     tipo = getattr(inimigo, 'tipo_especial', None)
     return indicadores.get(tipo, "")
 
-
 def _imprimir_dano_jogador(atk_jogador: int, dano_efetivo: int, inimigo: Inimigo) -> None:
-    """
-    Imprime a mensagem de dano causado pelo jogador.
-    Informa a absorção de armadura do Golem quando aplicável.
-    """
     absorcao = getattr(inimigo, 'absorcao_dano', 0)
     if absorcao > 0 and dano_efetivo < atk_jogador:
         absorvido = atk_jogador - dano_efetivo
@@ -122,99 +98,72 @@ def _imprimir_dano_jogador(atk_jogador: int, dano_efetivo: int, inimigo: Inimigo
     else:
         print(f"Você causou {dano_efetivo} de dano.\n")
 
-
-# ── Classe Masmorra ───────────────────────────────────────────────────────────
-
 class Masmorra:
-    """
-    Orquestra o estado e o fluxo completo de uma run da masmorra.
-
-    Responsabilidades:
-      - Manter estado da run (andar, desistiu, jogador).
-      - Delegar geração de salas ao GeradorSala.
-      - Executar lógica pura de combate via resolver_combate().
-      - Expor métodos de apresentação (prints) separados da lógica.
-
-    Atributos:
-        jogador   (Jogador):     Personagem controlado pelo jogador.
-        gerador   (GeradorSala): Responsável por gerar salas.
-        andar     (int):         Andar atual da masmorra.
-        desistiu  (bool):        True se o jogador optou por desistir.
-        andar_max (int|None):    Andar máximo para Modo Campanha; None = infinito.
-    """
-
     def __init__(
         self,
         jogador: Jogador,
         gerador: GeradorSala = None,
-        andar_max: Optional[int] = None,   # Lote 1: Modo Campanha
+        andar_max: Optional[int] = None,
+        modo: str = "story"
     ) -> None:
+        if modo not in ("story", "infinite"):
+            raise ValueError()
         self.jogador   = jogador
         self.gerador   = gerador if gerador is not None else GeradorSala()
         self.andar     = 0
         self.desistiu  = False
-        self.andar_max = andar_max   # Lote 1: None = modo infinito
-
-    # ── Lógica pura (testável) ─────────────────────────────────────────────────
+        self.andar_max = andar_max
+        self.modo      = modo
 
     def resolver_combate(self, inimigo: Inimigo) -> str:
-        """
-        Executa combate completo sem I/O.
-
-        Mecânicas especiais:
-          - Golem de Pedra:      absorção ocorre em inimigo.receber_dano().
-          - Caçador Sombrio:     ganha bonus_atk_por_turno antes de cada ataque.
-          - Vampiro das Sombras: cura cura_percentual do dano causado.
-          - Banshee:             chance_atordoar de pular o próximo ataque do jogador.
-
-        Retorna:
-            str: 'vitoria' ou 'derrota'.
-
-        Levanta:
-            ValueError: Se inimigo for None.
-        """
         if inimigo is None:
             raise ValueError("Inimigo não pode ser None.")
 
         jogador_atordoado = False
 
-        while self.jogador.esta_vivo() and inimigo.esta_vivo():
-
-            # ── Fase do Jogador ──────────────────────────────────────────────
-            if not jogador_atordoado:
-                if not random.random() < CHANCE_MISS_JOGADOR:
-                    inimigo.receber_dano(self.jogador.atk)
-                # se miss do jogador: nenhum dano neste turno
-            else:
-                jogador_atordoado = False   # consome atordoamento
-
-            # ── Fase do Inimigo (apenas se ainda vivo) ───────────────────────
-            if inimigo.esta_vivo():
-
-                # Caçador Sombrio: escala ATK antes de atacar
-                if inimigo.bonus_atk_por_turno > 0:
-                    inimigo.atk += inimigo.bonus_atk_por_turno
-
-                # Miss do inimigo
-                if not random.random() < inimigo.chance_miss:
-                    dano_causado = self.jogador.receber_dano(inimigo.atk)
+        # Laço externo (Lote 4): repete a luta quando um boss de 2ª fase renasce.
+        # Para inimigos comuns, tentar_renascer() devolve False e roda uma vez só.
+        while True:
+            while self.jogador.esta_vivo() and inimigo.esta_vivo():
+                if not jogador_atordoado:
+                    if not random.random() < CHANCE_MISS_JOGADOR:
+                        if not inimigo.tentar_esquivar():      # Lote 2: inimigo pode desviar
+                            dano_base, _ = self.jogador.rolar_dano()
+                            dano = inimigo.receber_dano(dano_base)
+                            self.jogador.aplicar_lifesteal(dano)   # dom Sanguessuga (Lote 3)
                 else:
-                    dano_causado = 0   # inimigo errou
+                    jogador_atordoado = False
 
-                # Vampiro das Sombras: cura % do dano causado
-                if inimigo.cura_percentual > 0 and dano_causado > 0:
-                    cura = max(1, int(dano_causado * inimigo.cura_percentual))
-                    inimigo.curar(cura)
-
-                # Banshee: atordoa o jogador no próximo turno
-                if inimigo.chance_atordoar > 0:
-                    if random.random() < inimigo.chance_atordoar:
+                if inimigo.esta_vivo():
+                    # Efeitos de status (veneno) agem no início da troca (Lote M/B2).
+                    self.jogador.processar_efeitos_turno()
+                    if not self.jogador.esta_vivo():
+                        break
+                    # Turno do inimigo: a lógica (miss/lifesteal/atordoar/escala)
+                    # vive em Inimigo.atacar(). Aqui só reagimos ao relatório.
+                    relatorio = inimigo.atacar(self.jogador)
+                    if relatorio["atordoou"]:
                         jogador_atordoado = True
+                    if relatorio["envenenou"]:
+                        self.jogador.envenenar()
+                    if relatorio.get("fraqueza"):
+                        self.jogador.aplicar_efeito(Fraqueza(2))
+                    if relatorio.get("esquiva_reduzida"):
+                        self.jogador.aplicar_efeito(EsquivaReduzida(1))
 
-        if not self.jogador.esta_vivo():
-            return "derrota"
+            if not self.jogador.esta_vivo():
+                return "derrota"
 
-        self.jogador.ganhar_xp(inimigo.xp)
+            # Boss de 2ª fase (Coração): renasce 1x e a luta recomeça em fúria.
+            if inimigo.tentar_renascer():
+                print(MENSAGEM_RENASCIMENTO)
+                jogador_atordoado = False
+                continue
+            break
+
+        niveis_ganhos = self.jogador.ganhar_xp(inimigo.xp)
+        if niveis_ganhos > 0:   # feedback de level-up (mesma mensagem da API)
+            print(mensagem_level_up(self.jogador.nome, self.jogador.nivel, niveis_ganhos))
         self.jogador.ganhar_moedas(inimigo.moedas)
         loot = self._rolar_loot(inimigo)
         if loot:
@@ -222,27 +171,6 @@ class Masmorra:
         return "vitoria"
 
     def tentar_fuga(self, inimigo: Inimigo = None) -> bool:
-        """
-        Simula tentativa de fuga do combate.
-
-        Chance base: CHANCE_FUGA (50%).
-        Modificadores por tipo:
-          Horda de Goblins:    +0.20 → 70%
-          Comum (dif 1):       +0.10 → 60%
-          Elite comum (dif 2): -0.05 → 45%
-          Golem de Pedra:      -0.05 → 45%
-          Caçador Sombrio:     +0.05 → 55%
-          Vampiro das Sombras: -0.10 → 40%
-          Banshee:             -0.15 → 35%
-
-        Limites: mínimo 5%, máximo 90%.
-
-        Parâmetros:
-            inimigo (Inimigo | None): Se None, usa CHANCE_FUGA pura.
-
-        Retorna:
-            bool: True se a fuga foi bem-sucedida.
-        """
         chance = CHANCE_FUGA
         if inimigo is not None:
             modificador = getattr(inimigo, 'modificador_fuga', 0.0)
@@ -250,84 +178,57 @@ class Masmorra:
         return random.random() < chance
 
     def e_andar_de_boss(self) -> bool:
-        """Retorna True se o andar atual é múltiplo de BOSS_A_CADA_ANDARES."""
-        return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES == 0
+        if self.modo == "story":
+            return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES == 0
+        else:
+            return self.andar > 0 and self.andar % BOSS_A_CADA_ANDARES_INFINITO == 0
 
     def gerar_boss(self) -> Inimigo:
-        """
-        Cria um boss escalado ao andar atual.
-
-        Patch v3 — balanceamento revisado:
-          Fórmulas antigas eram muito lineares e suaves — boss do andar 10
-          tinha HP=40 e ATK=9, fraco demais para um jogador com itens acumulados.
-
-          Novo escalonamento (fator = andar // 5):
-            HP     = 40 + (fator * 18)   → andares  5/10/15/20: 58 / 76 / 94 / 112
-            ATK    =  8 + (fator *  3)   → andares  5/10/15/20: 11 / 14 / 17 / 20
-            XP     = 80 + (fator * 40)   → andares  5/10/15/20: 120/ 160/ 200/ 240
-            moedas = 25 + (fator *  8)   → andares  5/10/15/20: 33 / 41 / 49 / 57
-
-          Nomes temáticos por nível de boss (ver constante NOMES_BOSS).
-        """
-        fator  = self.andar // BOSS_A_CADA_ANDARES
-        hp     = 40 + (fator * 18)
-        atk    =  8 + (fator *  3)
+        # Curva progressiva (constantes BOSS_* acima; recalibração config "C").
+        #   andar:   5    10    15    20
+        #   HP:     40    60    80   100   (= 20 + fator*20)
+        #   ATK:     6    10    13    17   (= round(2 + fator*3.75))
+        fator  = self.andar // (BOSS_A_CADA_ANDARES if self.modo == "story" else BOSS_A_CADA_ANDARES_INFINITO)
+        hp     = round(BOSS_HP_BASE  + fator * BOSS_HP_STEP)
+        atk    = round(BOSS_ATK_BASE + fator * BOSS_ATK_STEP)
         xp     = 80 + (fator * 40)
-        moedas = 25 + (fator *  8)
+moedas = 25 + (fator * 8)
         nome   = NOMES_BOSS.get(self.andar, "Yalergurath")
+
+        # Lote 4: o boss final da campanha tem 2ª fase (renasce 1x). É um Inimigo
+        # (isinstance vale; stats idênticas às travadas por teste) — só troca a
+        # classe concreta para habilitar o hook tentar_renascer().
+        if nome == "Coração da Masmorra":
+            return CoracaoDaMasmorra(hp=hp, atk=atk, xp=xp, moedas=moedas)
 
         return Inimigo(nome, hp=hp, atk=atk, dificuldade=3, xp=xp, moedas=moedas)
 
     def gerar_mimico(self) -> Inimigo:
-        """
-        Cria um Mímico com atributos fixos.
-
-        Patch v3: HP aumentado de 10→14, ATK de 3→4.
-        Mímicos devem ser uma surpresa desafiadora, não um inimigo trivial.
-        XP e moedas mantidos altos para recompensar o susto.
-        """
         return Inimigo("Mímico", hp=14, atk=4, dificuldade=2, xp=40, moedas=10)
 
     def aplicar_item(self, item: Item) -> dict:
-        """
-        Aplica item no jogador desta masmorra.
-
-        Levanta:
-            ValueError: Se item for None.
-        """
         if item is None:
             raise ValueError("Item não pode ser None.")
         return item.usar(self.jogador)
 
+    def calcular_score(self) -> int:
+        """
+        Pontuação total da run (Lote H): pontuação do herói + bônus por andar.
+
+        Combina o estado do jogador (jogador.pontuacao) com o andar alcançado
+        — métrica de "quão longe você foi", especialmente no modo infinito.
+        Serve de comparativo de competição (placar).
+        """
+        return self.jogador.pontuacao + self.andar * 100
+
     def _rolar_loot(self, inimigo: Inimigo):
-        """
-        Rola a chance de drop de item ao derrotar um inimigo.
-
-        Chance base definida em inimigo.chance_drop:
-          - Comuns dif 1:  8%
-          - Elites dif 2: 18-25% (varia por tipo especial)
-          - Bosses dif 3: 50% (garantia de recompensa maior)
-          - Horda:        12%
-
-        Se o drop acontece, retorna um Item aleatório do POOL_LOOT.
-        Se não, retorna None — e a chamada no resolver_combate é segura.
-
-        O item NÃO é aplicado aqui. Quem chama decide se aplica
-        (resolver_combate aplica; api/main.py aplica e inclui no response).
-
-        Retorna:
-            Item | None
-        """
-        # Bosses têm chance maior independente do atributo
-        chance = 0.50 if inimigo.dificuldade == 3 else inimigo.chance_drop
+        chance = 0.50 if inimigo.dificuldade == 3 else getattr(inimigo, 'chance_drop', 0.10)
         if random.random() < chance:
-            return random.choice(POOL_LOOT)
+            # Lote C: pool específico do tipo de inimigo (polimorfismo).
+            return random.choice(inimigo.tabela_loot())
         return None
 
-    # ── Apresentação (não testada unitariamente) ───────────────────────────────
-
     def mostrar_lore(self) -> None:
-        """Exibe o texto de lore de introdução."""
         introducao = input("Gostaria de ouvir uma história? [y/n]\n")
         if introducao.lower() == "n":
             print("\n")
@@ -338,7 +239,6 @@ class Masmorra:
         print("\n" * 2)
 
     def mostrar_status(self) -> None:
-        """Exibe o status atual do jogador no terminal."""
         print("─" * 40)
         print("STATUS\n")
         print(f"Nome:   {self.jogador.nome}")
@@ -351,7 +251,6 @@ class Masmorra:
         print("─" * 40 + "\n")
 
     def menu(self) -> str:
-        """Exibe menu principal e captura escolha do jogador."""
         print("\n─" * 20)
         print("O QUE DESEJA FAZER?\n")
         time.sleep(0.1)
@@ -361,33 +260,19 @@ class Masmorra:
         return input("> ")
 
     def _combate_interativo(self, inimigo: Inimigo) -> str:
-        """
-        Executa combate com input do jogador a cada turno.
-
-        Exibe indicadores visuais do tipo especial e processa todas as
-        mecânicas com mensagens narrativas.
-
-        Retorna:
-            str: 'vitoria', 'derrota' ou 'fuga'.
-        """
         jogador_atordoado = False
 
         while self.jogador.esta_vivo() and inimigo.esta_vivo():
-
-            # ── Cabeçalho do turno ────────────────────────────────────────────
             print("\n" + "─" * 40)
             indicador = _indicador_especial(inimigo)
             print(f"{inimigo.nome}{indicador}")
-            print(f"  HP: {inimigo.hp}/{inimigo.hp_max}  |  ATK: {inimigo.atk}")
+            print(f"  HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)}  |  ATK: {inimigo.atk}")
             print(f"\nSeu HP: {self.jogador.hp}/{self.jogador.hp_max}\n")
 
-            # ── Fase do Jogador ───────────────────────────────────────────────
             if jogador_atordoado:
                 print("⚡ Você está ATORDOADO e perde seu ataque neste turno!\n")
                 time.sleep(0.5)
                 jogador_atordoado = False
-                # Não mostra o menu; o inimigo ainda ataca abaixo
-
             else:
                 print("1 - Atacar")
                 print("2 - Esquivar e Atacar")
@@ -397,20 +282,38 @@ class Masmorra:
                 print()
 
                 if acao == "1":
-                    dano = inimigo.receber_dano(self.jogador.atk)
-                    _imprimir_dano_jogador(self.jogador.atk, dano, inimigo)
-                    time.sleep(0.2)
+                    if inimigo.tentar_esquivar():
+                        print(f"{inimigo.nome} desviou do seu golpe!\n")
+                        time.sleep(0.2)
+                    else:
+                        atk, critico = self.jogador.rolar_dano()
+                        dano = inimigo.receber_dano(atk)
+                        if critico:
+                            print("💥 Acerto CRÍTICO!")
+                        _imprimir_dano_jogador(atk, dano, inimigo)
+                        cura = self.jogador.aplicar_lifesteal(dano)
+                        if cura:
+                            print(f"Você drenou {cura} de vida.\n")
+                        time.sleep(0.2)
 
                 elif acao == "2":
                     print("Você tenta se esquivar e contra-atacar...\n")
                     time.sleep(0.2)
 
-                    if random.random() <= self.jogador.esq:
-                        dano = inimigo.receber_dano(self.jogador.atk)
-                        _imprimir_dano_jogador(self.jogador.atk, dano, inimigo)
+                    if random.random() <= self.jogador.esquiva_efetiva():
+                        if inimigo.tentar_esquivar():
+                            print(f"Você esquivou, mas o {inimigo.nome} desviou do seu contra-ataque!\n")
+                            time.sleep(0.2)
+                            continue
+                        atk, critico = self.jogador.rolar_dano()
+                        dano = inimigo.receber_dano(atk)
+                        if critico:
+                            print("💥 Acerto CRÍTICO!")
+                        _imprimir_dano_jogador(atk, dano, inimigo)
+                        self.jogador.aplicar_lifesteal(dano)
                         print("Esquiva bem-sucedida! Não foi atingido.\n")
                         time.sleep(0.2)
-                        continue   # dodge de sucesso: inimigo NÃO ataca
+                        continue
 
                     else:
                         dano_dobrado = self.jogador.receber_dano(inimigo.atk * 2)
@@ -420,17 +323,16 @@ class Masmorra:
                         )
                         time.sleep(0.2)
 
-                        # Mecânicas especiais do ataque dobrado
-                        if inimigo.cura_percentual > 0 and dano_dobrado > 0:
+                        if getattr(inimigo, 'cura_percentual', 0) > 0 and dano_dobrado > 0:
                             cura = max(1, int(dano_dobrado * inimigo.cura_percentual))
                             inimigo.curar(cura)
                             print(
-                                f"O Vampiro das Sombras absorveu sua energia "
+                                f"O {inimigo.nome} absorveu sua energia "
                                 f"vital e se curou em {cura} HP! "
-                                f"(HP: {inimigo.hp}/{inimigo.hp_max})\n"
+                                f"(HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)})\n"
                             )
                             time.sleep(0.3)
-                        continue   # evita o bloco de fase do inimigo abaixo
+                        continue
 
                 elif acao == "3":
                     modificador  = getattr(inimigo, 'modificador_fuga', 0.0)
@@ -449,47 +351,70 @@ class Masmorra:
                             f"e causou {dano_fuga} de dano.\n"
                         )
                         time.sleep(0.2)
-                        # segue para fase do inimigo
                 else:
                     print("Opção inválida!\n")
                     continue
 
-            # ── Fase do Inimigo ───────────────────────────────────────────────
             if inimigo.esta_vivo():
+                # Veneno de turnos anteriores age primeiro (Lote M).
+                dano_veneno = self.jogador.tick_veneno()
+                if dano_veneno > 0:
+                    print(
+                        f"O veneno corrói {dano_veneno} de vida. "
+                        f"(HP: {self.jogador.hp}/{self.jogador.hp_max})\n"
+                    )
+                    time.sleep(0.2)
+                    if not self.jogador.esta_vivo():
+                        break
 
-                # Caçador Sombrio: ATK escala a cada turno
-                if inimigo.bonus_atk_por_turno > 0:
-                    inimigo.atk += inimigo.bonus_atk_por_turno
+                # Turno do inimigo centralizado em Inimigo.atacar(); aqui só
+                # narramos o relatório na tela.
+                relatorio = inimigo.atacar(self.jogador)
+
+                if relatorio["subiu_atk"] > 0:
                     print(
                         f"O {inimigo.nome} ficou mais forte! "
                         f"ATK aumentou para {inimigo.atk}!\n"
                     )
                     time.sleep(0.3)
 
-                dano_causado = self.jogador.receber_dano(inimigo.atk)
-                print(f"{inimigo.nome} causou {dano_causado} de dano em você.\n")
+                if relatorio["errou"]:
+                    print(f"{inimigo.nome} tentou atacar, mas errou!\n")
+                else:
+                    print(f"{inimigo.nome} causou {relatorio['dano']} de dano em você.\n")
+
                 time.sleep(0.2)
 
-                # Vampiro das Sombras: cura 20% do dano causado
-                if inimigo.cura_percentual > 0 and dano_causado > 0:
-                    cura = max(1, int(dano_causado * inimigo.cura_percentual))
-                    inimigo.curar(cura)
+                if relatorio["curou"] > 0:
                     print(
-                        f"O Vampiro das Sombras absorveu sua energia "
-                        f"vital e se curou em {cura} HP! "
-                        f"(HP: {inimigo.hp}/{inimigo.hp_max})\n"
+                        f"O {inimigo.nome} absorveu sua energia "
+                        f"vital e se curou em {relatorio['curou']} HP! "
+                        f"(HP: {inimigo.hp}/{getattr(inimigo, 'hp_max', inimigo.hp)})\n"
                     )
                     time.sleep(0.3)
 
-                # Banshee: chance de atordoar no próximo turno
-                if inimigo.chance_atordoar > 0:
-                    if random.random() < inimigo.chance_atordoar:
-                        jogador_atordoado = True
-                        print(
-                            "O grito da Banshee ecoa dentro do seu crânio... "
-                            "Você será ATORDOADO no próximo turno!\n"
-                        )
-                        time.sleep(0.4)
+                if relatorio["atordoou"]:
+                    jogador_atordoado = True
+                    print(
+                        "O grito da Banshee ecoa dentro do seu crânio... "
+                        "Você será ATORDOADO no próximo turno!\n"
+                    )
+                    time.sleep(0.4)
+
+                if relatorio["envenenou"]:
+                    self.jogador.envenenar()
+                    print(mensagem_veneno(inimigo.nome) + "\n")
+                    time.sleep(0.4)
+
+                if relatorio.get("fraqueza"):
+                    self.jogador.aplicar_efeito(Fraqueza(2))
+                    print(mensagem_fraqueza(inimigo.nome) + "\n")
+                    time.sleep(0.4)
+
+                if relatorio.get("esquiva_reduzida"):
+                    self.jogador.aplicar_efeito(EsquivaReduzida(1))
+                    print(mensagem_esquiva_reduzida(inimigo.nome) + "\n")
+                    time.sleep(0.4)
 
         if not self.jogador.esta_vivo():
             return "derrota"
@@ -499,10 +424,6 @@ class Masmorra:
         return "vitoria"
 
     def avancar(self) -> None:
-        """
-        Avança um andar, gera o conteúdo e o resolve interativamente.
-        v3: mensagem diferenciada para a Horda de Goblins.
-        """
         self.andar += 1
         print(f"\nVocê avançou para o andar {self.andar}...\n")
         time.sleep(0.25)
@@ -558,7 +479,6 @@ class Masmorra:
                         return
                 else:
                     inimigo = conteudo
-                    # Mensagem diferenciada para a Horda
                     if getattr(inimigo, 'tipo_especial', None) == "horda":
                         print(f"Uma {inimigo.nome} irrompeu pela porta!\n")
                     else:
@@ -578,7 +498,6 @@ class Masmorra:
                 time.sleep(0.25)
 
     def jogar(self) -> None:
-        """Loop principal da run."""
         while self.jogador.esta_vivo() and not self.desistiu:
             escolha = self.menu()
             print()

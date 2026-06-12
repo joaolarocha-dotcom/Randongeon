@@ -40,14 +40,17 @@ export function deleteSave(slot: SaveSlot): void {
 }
 
 export function exportSaveToFile(state: SaveState): void {
+  // Conteúdo é JSON, mas gravado num .txt para ser um "arquivo de texto" simples
+  // que o jogador guarda e reabre. O import lê pelo conteúdo, então .txt e .json
+  // funcionam igualmente.
   const blob = new Blob([JSON.stringify(state, null, 2)], {
-    type: "application/json",
+    type: "text/plain;charset=utf-8",
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const safeName = (state.playerName || "save").replace(/[^a-zA-Z0-9_-]/g, "_");
   a.href = url;
-  a.download = `randongeon_${safeName}_andar${state.andar}.json`;
+  a.download = `randongeon_${safeName}_andar${state.andar}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
