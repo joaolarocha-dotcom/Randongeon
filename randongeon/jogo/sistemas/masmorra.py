@@ -39,10 +39,10 @@ BOSS_ATK_STEP = 3.75
 POOL_LOOT = LOOT_PADRAO
 
 NOMES_BOSS = {
-    5:  "Yalergurath",
-    10: "Yalergurath",
-    15: "Yalergurath",
-    20: "Yalergurath",
+    5:  "Arauto das Sombras",
+    10: "Senhor dos Corredores",
+    15: "Ceifador Eterno",
+    20: "Coração da Masmorra",
 }
 
 LORE = [
@@ -192,8 +192,8 @@ class Masmorra:
         hp     = round(BOSS_HP_BASE  + fator * BOSS_HP_STEP)
         atk    = round(BOSS_ATK_BASE + fator * BOSS_ATK_STEP)
         xp     = 80 + (fator * 40)
-moedas = 25 + (fator * 8)
-        nome   = NOMES_BOSS.get(self.andar, "Yalergurath")
+        moedas = 25 + (fator * 8)
+        nome   = NOMES_BOSS.get(self.andar, f"Guardião do Andar {self.andar}")
 
         # Lote 4: o boss final da campanha tem 2ª fase (renasce 1x). É um Inimigo
         # (isinstance vale; stats idênticas às travadas por teste) — só troca a

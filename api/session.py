@@ -17,10 +17,35 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-sys.path.insert(
-    0,
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "randongeon"),
-)
+
+def _descobrir_caminho_randongeon() -> str:
+    """
+    Localiza a pasta `randongeon/` (mesma lógica de api/main.py).
+    Aceita override via env var RANDONGEON_PATH.
+    """
+    env_path = os.environ.get("RANDONGEON_PATH")
+    if env_path and os.path.isdir(env_path):
+        return env_path
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidatos = [
+        os.path.join(here, "..", "randongeon"),
+        os.path.join(here, "randongeon"),
+    ]
+    cur = here
+    for _ in range(4):
+        candidatos.append(os.path.join(cur, "randongeon"))
+        cur = os.path.dirname(cur)
+
+    for cand in candidatos:
+        cand_abs = os.path.abspath(cand)
+        if os.path.isdir(os.path.join(cand_abs, "jogo", "entidades")):
+            return cand_abs
+
+    return os.path.abspath(os.path.join(here, "..", "randongeon"))
+
+
+sys.path.insert(0, _descobrir_caminho_randongeon())
 
 from jogo.entidades.inimigo import Inimigo
 from jogo.entidades.item    import Item

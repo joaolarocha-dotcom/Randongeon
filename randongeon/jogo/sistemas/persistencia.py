@@ -87,6 +87,6 @@ def desserializar_estado(data: dict) -> tuple[Jogador, Masmorra, str]:
 
     jogador = desserializar_jogador(data["jogador"])
     andar_max = 20 if modo == "story" else None
-    masmorra = Masmorra(jogador, GeradorSala(), andar_max=andar_max)
+    masmorra = Masmorra(jogador, GeradorSala(), andar_max=andar_max, modo=modo)
     masmorra.andar = int(data.get("andar", 0))
     return jogador, masmorra, modo

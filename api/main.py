@@ -22,10 +22,43 @@ import random
 import sys
 from datetime import datetime, timezone
 
-sys.path.insert(
-    0,
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "randongeon"),
-)
+
+def _descobrir_caminho_randongeon() -> str:
+    """
+    Localiza a pasta `randongeon/` (que contém o pacote `jogo/`).
+
+    Ordem de resolução:
+      1. Env var RANDONGEON_PATH (deploy em produção: Docker, PythonAnywhere, etc.)
+      2. Irmã de api/ (layout local: <repo>/randongeon/)
+      3. Subindo a árvore de diretórios a partir deste arquivo (procura por
+         uma pasta chamada `randongeon` que contenha `jogo/entidades/`)
+      4. Própria pasta de api/ (caso o usuário tenha colocado tudo junto)
+    """
+    env_path = os.environ.get("RANDONGEON_PATH")
+    if env_path and os.path.isdir(env_path):
+        return env_path
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidatos = [
+        os.path.join(here, "..", "randongeon"),  # layout local padrão
+        os.path.join(here, "randongeon"),         # randongeon/ dentro de api/
+    ]
+    # Sobe até 4 níveis procurando a pasta randongeon/
+    cur = here
+    for _ in range(4):
+        candidatos.append(os.path.join(cur, "randongeon"))
+        cur = os.path.dirname(cur)
+
+    for cand in candidatos:
+        cand_abs = os.path.abspath(cand)
+        if os.path.isdir(os.path.join(cand_abs, "jogo", "entidades")):
+            return cand_abs
+
+    # Fallback final: assume irmã (vai dar erro de import legível depois)
+    return os.path.abspath(os.path.join(here, "..", "randongeon"))
+
+
+sys.path.insert(0, _descobrir_caminho_randongeon())
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,9 +95,15 @@ from jogo.sistemas.persistencia import serializar_estado, desserializar_estado
 
 app = FastAPI(title="Randongeon API", version="3.1-lote2a")
 
+# CORS: por padrão libera tudo (bom pra demo de faculdade).
+# Pra produção restrita, defina ALLOWED_ORIGINS como env var com domínios
+# separados por vírgula. Ex: "https://randongeon.vercel.app,http://localhost:5173"
+_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
+_allowed_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -266,7 +305,7 @@ def new_game(req: NewGameRequest):
     return NewGameResponse(
         session_id=session_id,
         jogador=_jogador_status(state),
-        modo=state.game_mode,
+        modo=state.modo,
     )
 
 
@@ -277,13 +316,11 @@ def new_game(req: NewGameRequest):
 @app.get("/game/{session_id}/status", response_model=StatusResponse)
 def get_status(session_id: str):
     state = _get_session(session_id)
-    game_mode_map = {"campaign": "story", "infinite": "infinite"}
-    modo = game_mode_map.get(state.game_mode, state.game_mode)
     return StatusResponse(
         session_id=session_id,
         jogador=_jogador_status(state),
         andar=state.masmorra.andar,
-        modo=modo,
+        modo=state.modo,
     )
 
 

@@ -1,4 +1,6 @@
-const API_BASE = "http://localhost:8000";
+// Lê a URL da API de uma env var injetada em build time pelo Vite.
+// Em dev, usa localhost:8000. Em produção (Vercel), defina VITE_API_URL.
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 /** Erro de API que carrega o status HTTP (ex.: 404 = sessão perdida). */
 export class ApiError extends Error {
